@@ -1,0 +1,116 @@
+# generated: 2026-03-01
+# project: NVI FIBER
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: F:\NVI FIBER\_bmad-output\implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog -> in-progress: Automatically when first story is created (via create-story)
+#   - in-progress -> done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-03-01
+project: NVI FIBER
+project_key: NOKEY
+tracking_system: file-system
+story_location: "F:\\NVI FIBER\\_bmad-output\\implementation-artifacts"
+
+development_status:
+  # Epic 1: Guvenli Erisim ve Veri Altyapisi
+  epic-1: done
+  1-1-olay-sistemi-ve-gelismis-loglama: done
+  1-2-indexeddb-veri-katmani-ve-migrasyon: done
+  1-3-nvi-veri-cache-ve-delta-guncelleme: done
+  1-4-geri-al-ileri-al-undo-redo-sistemi: done
+  1-5-otomatik-yedekleme-ve-geri-yukleme: done
+  1-6-offline-calisma-ve-veri-aktarimi: done
+  1-7-extension-erisim-kontrolu-ve-aktivasyon: done
+  epic-1-retrospective: optional
+
+  # Epic 2: Ada Topoloji Planlama ve Harita Deneyimi
+  # NOT: Bu epic'in tum ozellikleri brownfield kodda zaten mevcut (pre-BMAD).
+  # Sprint-status gercek kod durumuyla hizalandi (2026-03-01).
+  epic-2: done
+  2-1-leaflet-harita-overlay-ve-uydu-gorunumu: done
+  2-2-nvi-ada-tarama-ve-bina-secimi: done
+  2-3-bina-bilgisi-duzenleme-ve-coklu-ada-yonetimi: done
+  2-4-olt-yerlesimi-ve-gpon-port-hesabi: done
+  2-5-mst-kablo-rotalama-ve-manuel-duzenleme: done
+  2-6-splitter-hesabi-ve-loss-budget-dogrulama: done
+  2-7-kablo-core-hesabi-ve-harita-gorsellestirme: done
+  2-8-kalite-degerlendirme-ve-uyari-sistemi: done
+  epic-2-retrospective: optional
+
+  # Epic 3: Envanter, Maliyet ve Tek Ekran Yonetimi
+  # NOT: Story 3.1, 3.2, 3.4 ozellikleri brownfield kodda mevcut (pre-BMAD).
+  # Story 3.3 "Smart Bubbles UI" olarak guncellendi — henuz implement edilmedi.
+  epic-3: in-progress
+  3-1-otomatik-envanter-ve-malzeme-listesi: done
+  3-2-katalog-fiyat-guncelleme-ve-maliyet-hesabi: done
+  3-3-smart-bubbles-ui-sistemi: backlog
+  3-4-ada-bazli-listeleme-ve-durum-gostergeleri: done
+  epic-3-retrospective: optional
+
+  # Epic 4: Varyasyon Analizi ve Senaryo Karsilastirma
+  epic-4: in-progress
+  4-1-varyasyon-olusturma: review
+  4-2-senaryo-karsilastirma-tablosu: review
+  4-3-optimum-senaryo-secimi-ve-aktivasyon: review
+  epic-4-retrospective: optional
+
+  # Epic 5: Finansal Analiz ve Yatirim Yonetimi
+  epic-5: in-progress
+  5-1-aktif-ekipman-ve-yatirim-kalemi-tanimlama: review
+  5-2-modem-maliyet-yonetimi: review
+  5-3-toplam-yatirim-maliyeti-hesabi: review
+  5-4-mrr-projeksiyonu-ve-roi-hesabi: review
+  5-5a-taahut-ve-kampanya-model-tanimlama: review
+  5-5b-taahut-modeli-finansal-etki-hesabi: review
+  5-6-taahut-senaryo-karsilastirma: review
+  epic-5-retrospective: optional
+
+  # Epic 6: Pazarlama Stratejisi ve Bolgesel Planlama
+  epic-6: backlog
+  6-1-senaryo-verisi-saklama-ve-disa-aktarma: backlog
+  6-2-bolge-bazli-pazarlama-stratejisi: backlog
+  6-3-isi-haritasi-gorsellestirme-ve-katman-yonetimi: backlog
+  6-4-isi-haritasi-ile-yatirim-onceliklendirme: backlog
+  6-5-komsu-ada-sematigi-ve-seri-planlama: backlog
+  epic-6-retrospective: optional
+
+  # Epic 7: Canli Ag Izleme (Post-MVP)
+  epic-7: backlog
+  7-1-uisp-cihaz-durum-entegrasyonu: backlog
+  7-2-zabbix-ag-metrikleri-entegrasyonu: backlog
+  7-3-planlanan-vs-canli-ag-karsilastirma: backlog
+  epic-7-retrospective: optional
+
+  # Epic 8: AI Destekli Proaktif Ariza Yonetimi (Vizyon)
+  epic-8: in-progress
+  8-1-anomali-tespiti-ve-ariza-tahmini: done
+  8-2-otomatik-uyari-ve-onleyici-bakim: backlog
+  epic-8-retrospective: optional

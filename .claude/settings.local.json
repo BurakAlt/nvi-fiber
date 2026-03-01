@@ -1,0 +1,51 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(echo:*)",
+      "WebSearch",
+      "WebFetch(domain:blog.apnic.net)",
+      "WebFetch(domain:www.fs.com)",
+      "WebFetch(domain:www.thefoa.org)",
+      "WebFetch(domain:www.vsolcn.com)",
+      "WebFetch(domain:www.cisco.com)",
+      "WebFetch(domain:www.tarluz.com)",
+      "Bash(if not exist \"F:\\\\NVI FIBER\\\\_bmad-output\\\\implementation-artifacts\" mkdir \"F:\\\\NVI FIBER\\\\_bmad-output\\\\implementation-artifacts\")",
+      "Bash(firecrawl login:*)",
+      "Bash(firecrawl search:*)",
+      "Bash(firecrawl scrape:*)",
+      "Bash(firecrawl map:*)",
+      "Bash(dir:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(gh api:*)",
+      "WebFetch(domain:core.telegram.org)",
+      "Bash(findstr:*)",
+      "Bash(node -e \"try { require\\(''fs''\\).readFileSync\\(''F:/NVI FIBER/fiber-chrome/lib/variation.js'',''utf8''\\); new Function\\(require\\(''fs''\\).readFileSync\\(''F:/NVI FIBER/fiber-chrome/lib/variation.js'',''utf8''\\)\\); console.log\\(''variation.js: SYNTAX OK''\\); } catch\\(e\\) { console.error\\(''variation.js SYNTAX ERROR:'', e.message\\); }\")",
+      "Bash(node -e \"try { new Function\\(require\\(''fs''\\).readFileSync\\(''F:/NVI FIBER/fiber-chrome/content/panels.js'',''utf8''\\)\\); console.log\\(''panels.js: SYNTAX OK''\\); } catch\\(e\\) { console.error\\(''panels.js SYNTAX ERROR:'', e.message\\); }\")",
+      "Bash(node -e \"try { new Function\\(require\\(''fs''\\).readFileSync\\(''F:/NVI FIBER/fiber-chrome/lib/topology.js'',''utf8''\\)\\); console.log\\(''topology.js: SYNTAX OK''\\); } catch\\(e\\) { console.error\\(''topology.js SYNTAX ERROR:'', e.message\\); }\")",
+      "Bash(node -e \"try { new Function\\(require\\(''fs''\\).readFileSync\\(''F:/NVI FIBER/fiber-chrome/lib/storage.js'',''utf8''\\)\\); console.log\\(''storage.js: SYNTAX OK''\\); } catch\\(e\\) { console.error\\(''storage.js SYNTAX ERROR:'', e.message\\); }\")",
+      "Bash(del \"F:\\\\NVI FIBER\\\\fiber-chrome\\\\dashboard\\\\run-suite10.js\")",
+      "Bash(node:*)",
+      "Bash(del \"F:\\\\NVI FIBER\\\\fiber-chrome\\\\dashboard\\\\run-suite-financial.js\")",
+      "Allow all tools"
+    ],
+    "ask": [
+      "Allow all tools"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"F:\\NVI FIBER\\scripts\\claude-telegram-hook.py\"",
+            "timeout": 600
+          }
+        ]
+      }
+    ],
+    "Notification": []
+  }
+}
