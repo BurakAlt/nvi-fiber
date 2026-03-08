@@ -1,13 +1,13 @@
 # Story 8.1: Anomali Tespiti ve Ariza Tahmini
 
-Status: done
+Status: ready-for-dev
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
 ## Story
 
-As a ag yoneticisi,
-I want ag metriklerindeki anomalilerin otomatik tespit edilmesini ve olasi arizalarin onceden tahmin edilmesini,
+As a ağ yoneticisi,
+I want ağ metriklerindeki anomalilerin otomatik tespit edilmesini ve olası arizalarin onceden tahmin edilmesini,
 so that sorunlar buyumeden mudahale edebilir ve kesintisiz hizmet sunabileyim.
 
 ## Acceptance Criteria (BDD)
@@ -29,41 +29,41 @@ so that sorunlar buyumeden mudahale edebilir ve kesintisiz hizmet sunabileyim.
 
 ## Tasks / Subtasks
 
-- [x] Task 1: AIEngine modulu olusturma (AC: #1, #2, #3)
-  - [x] 1.1 `lib/ai-engine.js` IIFE modulu olustur — anomalyDetect(), predictFailure() API
-  - [x] 1.2 CONSTANTS tanimla: Z_SCORE_THRESHOLD (3.0), MOVING_AVG_WINDOW (24), MIN_DATA_POINTS (168), PREDICTION_HORIZON_DAYS (7)
-  - [x] 1.3 `detectAnomalies(metrics)` — Z-score hesaplama ve esik kontrolu
-  - [x] 1.4 `calculateMovingAverage(data, window)` — hareketli ortalama ve sapma tespiti
-  - [x] 1.5 `predictFailures(historicalData)` — trend analizi + gecmis ariza korelasyonu
-  - [x] 1.6 `getAnomalySeverity(zScore)` — ciddiyet siniflandirma: info (2-3), warning (3-4), critical (4+)
-  - [x] 1.7 `getLearningStatus(deviceId)` — ogrenme modu durumu kontrolu (min veri esigi)
+- [ ] Task 1: AIEngine modulu olusturma (AC: #1, #2, #3)
+  - [ ] 1.1 `lib/ai-engine.js` IIFE modulu olustur — anomalyDetect(), predictFailure() API
+  - [ ] 1.2 CONSTANTS tanimla: Z_SCORE_THRESHOLD (3.0), MOVING_AVG_WINDOW (24), MIN_DATA_POINTS (168), PREDICTION_HORIZON_DAYS (7)
+  - [ ] 1.3 `detectAnomalies(metrics)` — Z-score hesaplama ve esik kontrolu
+  - [ ] 1.4 `calculateMovingAverage(data, window)` — hareketli ortalama ve sapma tespiti
+  - [ ] 1.5 `predictFailures(historicalData)` — trend analizi + gecmis ariza korelasyonu
+  - [ ] 1.6 `getAnomalySeverity(zScore)` — ciddiyet siniflandirma: info (2-3), warning (3-4), critical (4+)
+  - [ ] 1.7 `getLearningStatus(deviceId)` — ogrenme modu durumu kontrolu (min veri esigi)
 
-- [x] Task 2: Veri modeli ve metrik tanimlari (AC: #1, #4)
-  - [x] 2.1 Metrik veri yapisi tanimla: { deviceId, timestamp, bandwidth, packetLoss, latency, uptime }
-  - [x] 2.2 Anomali veri yapisi tanimla: { id, deviceId, buildingId, metricType, severity, startTime, zScore, deviation }
-  - [x] 2.3 Tahmin veri yapisi tanimla: { id, deviceId, region, failureType, probability, predictedDate, affectedBuildings }
-  - [x] 2.4 Normal davranis profili (baseline) veri yapisi: { deviceId, metricType, mean, stdDev, lastUpdated, dataPoints }
+- [ ] Task 2: Veri modeli ve metrik tanimlari (AC: #1, #4)
+  - [ ] 2.1 Metrik veri yapisi tanimla: { deviceId, timestamp, bandwidth, packetLoss, latency, uptime }
+  - [ ] 2.2 Anomali veri yapisi tanimla: { id, deviceId, buildingId, metricType, severity, startTime, zScore, deviation }
+  - [ ] 2.3 Tahmin veri yapisi tanimla: { id, deviceId, region, failureType, probability, predictedDate, affectedBuildings }
+  - [ ] 2.4 Normal davranis profili (baseline) veri yapisi: { deviceId, metricType, mean, stdDev, lastUpdated, dataPoints }
 
-- [x] Task 3: EventBus entegrasyonu (AC: #1, #2)
-  - [x] 3.1 Event tanimlamalari: `anomaly:detected`, `anomaly:resolved`, `prediction:created`, `prediction:feedback`
-  - [x] 3.2 Zabbix veri dinleme: `metrics:updated` event'ini dinle (Epic 7 bagimliligi)
-  - [x] 3.3 Anomali tespit dongusu: metrik guncelleme → anomali kontrolu → event yayini
+- [ ] Task 3: EventBus entegrasyonu (AC: #1, #2)
+  - [ ] 3.1 Event tanimlamalari: `anomaly:detected`, `anomaly:resolved`, `prediction:created`, `prediction:feedback`
+  - [ ] 3.2 Zabbix veri dinleme: `metrics:updated` event'ini dinle (Epic 7 bagimliligi)
+  - [ ] 3.3 Anomali tespit dongusu: metrik guncelleme → anomali kontrolu → event yayini
 
-- [x] Task 4: Harita gorsellestirme entegrasyonu (AC: #2, #4)
-  - [x] 4.1 Overlay.js'e anomali katmani ekle — kirmizi pulse marker (anomali) ve turuncu marker (tahmin)
-  - [x] 4.2 Anomali popup: cihaz bilgisi, metrik grafigi, ciddiyet, baslangic zamani
-  - [x] 4.3 Tahmin popup: ariza tipi, olasilik, beklenen tarih, etkilenen bina sayisi
-  - [x] 4.4 MapUtils'e anomali/tahmin ikon fonksiyonlari ekle
+- [ ] Task 4: Harita gorsellestirme entegrasyonu (AC: #2, #4)
+  - [ ] 4.1 Overlay.js'e anomali katmani ekle — kirmizi pulse marker (anomali) ve turuncu marker (tahmin)
+  - [ ] 4.2 Anomali popup: cihaz bilgisi, metrik grafigi, ciddiyet, baslangic zamani
+  - [ ] 4.3 Tahmin popup: ariza tipi, olasilik, beklenen tarih, etkilenen bina sayisi
+  - [ ] 4.4 MapUtils'e anomali/tahmin ikon fonksiyonlari ekle
 
-- [x] Task 5: Panel UI entegrasyonu (AC: #3, #4, #5)
-  - [x] 5.1 Panels.js'e "AI Izleme" sekmesi ekle — anomali listesi, tahmin listesi, ogrenme durumu
-  - [x] 5.2 Anomali detay karti: metrik grafigi (son 24 saat), sapma buyuklugu, onerilen aksiyon
-  - [x] 5.3 Tahmin geri bildirim butonu: "Dogru tahmin" / "Yanlis alarm" (FR77 hazirlik)
-  - [x] 5.4 Ogrenme modu gostergesi: ilerleme cubugu (toplanan veri / minimum esik)
+- [ ] Task 5: Panel UI entegrasyonu (AC: #3, #4, #5)
+  - [ ] 5.1 Panels.js'e "AI Izleme" sekmesi ekle — anomali listesi, tahmin listesi, ogrenme durumu
+  - [ ] 5.2 Anomali detay karti: metrik grafigi (son 24 saat), sapma buyuklugu, onerilen aksiyon
+  - [ ] 5.3 Tahmin geri bildirim butonu: "Dogru tahmin" / "Yanlis alarm" (FR77 hazirlik)
+  - [ ] 5.4 Ogrenme modu gostergesi: ilerleme cubugu (toplanan veri / minimum esik)
 
-- [x] Task 6: manifest.json guncelleme
-  - [x] 6.1 `lib/ai-engine.js` dosyasini content_scripts[0].js dizisine ekle — `lib/review-engine.js` veya `lib/financial.js`'ten sonra, `content/` dosyalarindan once
-  - [x] 6.2 Gerekli yeni izinleri kontrol et (ek izin gerekmemeli)
+- [ ] Task 6: manifest.json guncelleme
+  - [ ] 6.1 `lib/ai-engine.js` dosyasini content_scripts[0].js dizisine ekle — `lib/review-engine.js` veya `lib/financial.js`'ten sonra, `content/` dosyalarindan once
+  - [ ] 6.2 Gerekli yeni izinleri kontrol et (ek izin gerekmemeli)
 
 ## Dev Notes
 
@@ -161,46 +161,10 @@ Epic 7 henuz gelistirilmediginden:
 
 ### Agent Model Used
 
-Claude Opus 4.6
+{{agent_model_name_version}}
 
 ### Debug Log References
 
 ### Completion Notes List
 
-- AIEngine IIFE modulu olusturuldu (lib/ai-engine.js): Z-score anomali tespiti, hareketli ortalama, lineer regresyon ile ariza tahmini, ogrenme durumu kontrolu, mock veri ureteci, EventBus entegrasyonu
-- Tum veri yapilari AIEngine icinde tanimli: metrik, anomali, tahmin, baseline profili
-- EventBus event'leri: anomaly:detected, anomaly:resolved, prediction:created, prediction:feedback — tumu emit ve listen ediliyor
-- metrics:updated event dinleme init() icinde baglandi (Epic 7 hazir oldugunda otomatik gecis)
-- Overlay.js'e renderAILayer() eklendi: anomali markerleri (kirmizi pulse SVG), tahmin markerleri (turuncu ucgen), detayli popup'lar
-- MapUtils'e createAnomalyIcon() ve createPredictionIcon() SVG ikon fonksiyonlari eklendi
-- Panels.js'e renderAIPanel() eklendi: ogrenme durumu (progress bar), anomali listesi (ciddiyet renkli), tahmin listesi (geri bildirim butonlari)
-- CSS stilleri overlay.css'e eklendi: fp-ai-panel, fp-ai-anomaly-card, fp-ai-prediction-card, severity renkler
-- manifest.json guncellendi: lib/ai-engine.js → lib/activation.js'ten sonra, content/scraper.js'ten once
-- Test dosyasi: dashboard/test-ai-engine.html — 16 test grubu, 80+ assertion
-- Ek izin gerekmedi (mevcut permissions yeterli)
-- [Review Fix] getRecommendedAction(), getSparklineData(), sparklineSVG() fonksiyonlari AIEngine'e eklendi
-- [Review Fix] Anomali popup ve panelde 24 saatlik sparkline grafik + onerilen aksiyon gosteriliyor
-- [Review Fix] init() guard, anomali deduplication, prediction trim, CSS degisken duzeltmeleri uyguland
-
-### Change Log
-
-- 2026-03-01: Story 8.1 implementasyonu tamamlandi — AIEngine modulu, harita ve panel entegrasyonlari
-- 2026-03-01: Senior Developer Review (8 bulgu) — 4 HIGH, 3 MEDIUM, 1 LOW otomatik duzeltildi:
-  - H1: AC4 sparkline grafik eklendi (sparklineSVG fonksiyonu, overlay popup ve panel kart)
-  - H2: Onerilen aksiyon eklendi (getRecommendedAction fonksiyonu, overlay popup ve panel kart)
-  - H3: init() guard eklendi (_initialized flag ile coklu EventBus listener onlendi)
-  - H4: CSS --fp-muted → --fp-text-muted duzeltildi (4 yer)
-  - M1: _predictions dizi buyume siniri eklendi (MAX_PREDICTIONS: 100)
-  - M2: Anomali deduplication eklendi (ayni device+metric kontrolu)
-  - M3: scanAllDevices mock buildingId mapping → _deviceBuildingMap lookup
-  - L1: Test non-determinism (bilgi notu, duzeltme gereksiz)
-
 ### File List
-
-- fiber-chrome/lib/ai-engine.js (YENI)
-- fiber-chrome/lib/map-utils.js (DEGISTIRILDI — createAnomalyIcon, createPredictionIcon, AI_COLORS eklendi)
-- fiber-chrome/content/overlay.js (DEGISTIRILDI — aiMarkers dizisi, renderAILayer() eklendi, clear() ve render() guncellendi)
-- fiber-chrome/content/panels.js (DEGISTIRILDI — fp-ai-panel div, renderAIPanel() eklendi, refresh() guncellendi, public API'ye eklendi)
-- fiber-chrome/styles/overlay.css (DEGISTIRILDI — AI panel CSS stilleri eklendi)
-- fiber-chrome/manifest.json (DEGISTIRILDI — lib/ai-engine.js yukleme sirasina eklendi)
-- fiber-chrome/dashboard/test-ai-engine.html (YENI — 16 test grubu, 80+ assertion)

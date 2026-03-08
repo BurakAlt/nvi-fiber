@@ -1,6 +1,6 @@
-# Story 5.5a: Taahut ve Kampanya Model Tanimlama
+//# Story 5.5a: Taahut ve Kampanya Model Tanimlama
 
-Status: review
+Status: done
 
 ## Story
 

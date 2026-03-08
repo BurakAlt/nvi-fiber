@@ -1,6 +1,6 @@
 # Story 5.5b: Taahut Modeli Finansal Etki Hesabi
 
-Status: review
+Status: done
 
 ## Story
 

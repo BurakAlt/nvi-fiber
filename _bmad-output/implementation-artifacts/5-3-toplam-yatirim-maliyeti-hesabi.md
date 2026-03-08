@@ -1,6 +1,6 @@
 # Story 5.3: Toplam Yatirim Maliyeti Hesabi
 
-Status: review
+Status: done
 
 ## Story
 

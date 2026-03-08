@@ -1,6 +1,6 @@
 # Story 5.4: MRR Projeksiyonu ve ROI Hesabi
 
-Status: review
+Status: done
 
 ## Story
 

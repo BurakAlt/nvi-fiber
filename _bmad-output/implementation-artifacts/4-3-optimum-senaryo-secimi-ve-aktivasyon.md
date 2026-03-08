@@ -1,6 +1,6 @@
 # Story 4.3: Optimum Senaryo Secimi ve Aktivasyon
 
-Status: review
+Status: done
 
 ## Story
 

@@ -120,6 +120,14 @@ This document provides the complete epic and story breakdown for NVI FIBER, deco
 - FR71: Saha muhendisi, planlanan topoloji ile canli ag durumunu ayni harita uzerinde karsilastirabilir
 - FR72: Sistem, cihaz bazli performans grafiklerini monitor edebilir
 
+**Uzaktan Cihaz Yonetimi ve Trafik Analizi (FR78-FR83) — Post-MVP Ek**
+- FR78: Sistem, TR-069/TR-369 protokolu uzerinden CPE cihazlarini (ONT, router) uzaktan yonetebilir (WiFi, PPPoE, bandwidth, reset, diagnostik)
+- FR79: Sistem, yeni CPE cihazlarini Zero Touch Provisioning ile otomatik yapilandirabilir (seri no bazli profil esleme)
+- FR80: Sistem, cihaz gruplarına toplu firmware guncelleme dagitabilir (pre-backup, rollback destegi)
+- FR81: Sistem, NetFlow/sFlow/IPFIX flow verilerini toplayip analiz edebilir (top talkers, uygulama dagilimi, anomali tespiti)
+- FR82: Sistem, abone bazinda QoE skoru (0-100) hesaplayabilir (latency, jitter, packet loss, throughput)
+- FR83: Abone, self-servis web portali uzerinden fatura, paket, hiz testi, destek talebi ve WiFi yonetimi yapabilir
+
 **Yapay Zeka Destekli Proaktif Ariza Yonetimi (FR73-FR77) — Vizyon**
 - FR73: Sistem, ag metriklerindeki anormallikleri tespit ederek musteri bildirmeden once arizayi sezebilir
 - FR74: Sistem, gecmis ariza verilerinden oruntu cikararak olasi ariza noktalarini onceden tahmin edebilir
@@ -1703,6 +1711,154 @@ So that planla gerceklik arasindaki farklari tespit edebilir ve duzeltici aksiyo
 - Karsilastirma: planlanan topoloji (Topology) vs canli veriler (UISP + Zabbix)
 - Overlay modu: haritada planlanan (mavi) vs canli (yesil) katmanlar
 - Uyumsuzluk tipleri: eksik cihaz, fazla cihaz, kapasite asimi, baglanti farki
+
+### Story 7.4: TR-069 ACS Entegrasyonu, Zero Touch Provisioning ve Firmware Yonetimi
+
+As a ag yoneticisi,
+I want TR-069/TR-369 protokolu uzerinden tum CPE cihazlarimi uzaktan yonetebilmek, yeni cihazlari otomatik yapilandirabilmek ve firmware guncellemelerini toplu yapabilmek,
+So that saha ziyaretlerini %60-70 azaltabileyim ve yuzlerce cihaza tek seferde konfigürasyon/firmware dagitabileyim.
+
+**Acceptance Criteria:**
+
+**Given** ACS modulu aktif olduGunda
+**When** TR-069 destekli bir CPE cihazi (TP-Link XC220-G3, Tenda, Cudy) aga baglandiginda
+**Then** cihaz otomatik olarak ACS'ye CWMP uzerinden kayit olmali
+**And** cihaz seri numarasi, MAC adresi, model ve firmware versiyonu kaydedilmeli
+
+**Given** ACS'ye kayitli bir cihaz mevcut olduGunda
+**When** yonetici uzaktan yonetim islemleri baslattiginda
+**Then** WiFi ayarlari, PPPoE kimlik bilgisi, bandwidth limiti degistirilebilmeli
+**And** fabrika ayarlarina sifirlama ve uzaktan diagnostik (ping, traceroute) yapilabilmeli
+
+**Given** yeni bir CPE cihazi sahaya gonderildiginde
+**When** cihaz elektrige takilip WAN baglantisi kuruldugunda
+**Then** ZTP sureci otomatik baslamali: seri numarasiyla ACS'ye baglanip dogru profili indirmeli
+**And** teknisyenin cihaza console ile baglanmasina gerek kalmamali
+
+**Given** firmware guncelleme plani olusturulduGunda
+**When** yonetici toplu guncelleme baslattiginda
+**Then** secilen cihaz grubuna firmware push yapilabilmeli
+**And** guncelleme oncesi otomatik config backup alinmali
+**And** basarisiz guncelleme durumunda otomatik rollback yapilabilmeli
+
+**Teknik Notlar:**
+- AcsManager modulu (lib/acs-manager.js) — IIFE pattern, yeni modul
+- Harici ACS sunucusu gerekli (GenieACS oneriliyor) — Extension sadece API client
+- Desteklenen cihazlar: TP-Link XC220-G3, Tenda HG9/V300, Cudy tum seriler (hepsi TR-069 destekli)
+- TR-069 CWMP protokolu: Inform, GetParameterValues, SetParameterValues, Download, Upload, Reboot, FactoryReset
+- ZTP: cihaz boot → PPPoE baglanti → TR-069 client ACS'ye baglan → profil indir → provisioning complete
+- Firmware: TR-069 Download RPC ile push, oncesinde Upload RPC ile config backup
+
+### Story 7.5: NetFlow/sFlow/IPFIX Trafik Analizi
+
+As a ag yoneticisi,
+I want router ve switch'lerden gelen flow verilerini toplayip analiz edebilmek,
+So that ag trafigini uygulama bazinda gorebileyim, kapasite planlamasini gercek veriye dayandirabileyim ve anormal trafik paternlerini erken tespit edebileyim.
+
+**Acceptance Criteria:**
+
+**Given** flow collector aktif olduGunda
+**When** router'lar flow verisi gonderdiginde
+**Then** flow kayitlari toplanmali ve islenmeli (kaynak/hedef IP, port, protokol, byte/paket sayisi)
+**And** veriler zaman serisi olarak saklanmali (24h detayli, 7d agregat, 30d ozet)
+
+**Given** flow verileri toplandıGında
+**When** kullanici trafik analiz panelini actiginda
+**Then** top talkers, uygulama dagilimi, bant genisligi kullanimi ve protokol dagilimi goruntulenebilmeli
+**And** tum gorunumlerde zaman araligi secimi olmali
+
+**Given** flow analizi calisirken
+**When** anormal trafik paterni tespit edildiginde
+**Then** anomali uyarisi uretilmeli (bandwidth hog >%30, DDoS sinyali, port scan)
+**And** anomali detaylari loglanmali ve EventBus uzerinden bildirilmeli
+
+**Teknik Notlar:**
+- FlowAnalyzer modulu (lib/flow-analyzer.js) — IIFE pattern, yeni modul
+- Harici flow collector gerekli (ntopng oneriliyor) — Extension sadece API client
+- NetFlow v5/v9, sFlow v5, IPFIX destegi (collector uzerinden)
+- MikroTik router'lar sFlow destekler — Cankiri altyapisiyla uyumlu
+- Uygulama siniflandirma: port-bazli (80/443=Web, 6881-6889=Torrent, 3478-3497=Gaming)
+- IndexedDB kullan (flow verileri buyuk — chrome.storage.local yetersiz)
+
+### Story 7.6: QoE (Quality of Experience) Motoru
+
+As a ag yoneticisi,
+I want her abonenin gercek internet deneyim kalitesini olcebilmek ve bufferbloat gibi sorunlari otomatik tespit edebilmek,
+So that musteri memnuniyetini proaktif olarak izleyebileyim ve churn oranini dusurebileyim.
+
+**Acceptance Criteria:**
+
+**Given** QoE motoru aktif olduGunda
+**When** abone bazinda ag metrikleri toplandıGında
+**Then** her abone icin QoE skoru (0-100) hesaplanmali (latency %30, jitter %20, packet loss %25, throughput %25)
+**And** QoE gecmisi saklanmali (trend analizi icin son 30 gun)
+
+**Given** QoE metrikleri toplandıGında
+**When** bufferbloat tespit edildiginde
+**Then** etkilenen abone ve ekipman bilgisi raporlanmali
+**And** onerilen AQM (FQ-CoDel) ayari sunulmali
+
+**Given** AP veya OLT portu kapasite limitine yaklastiginda
+**When** ortalama kullanim >%80 olduGunda
+**Then** kapasite uyarisi uretilmeli ve genisleme onerisi sunulmali
+
+**Given** QoE verileri toplandıGında
+**When** kullanici QoE dashboard'unu actiginda
+**Then** genel ozet, abone QoE listesi, detay grafikleri ve problem haritasi goruntulenebilmeli
+
+**Teknik Notlar:**
+- QoeEngine modulu (lib/qoe-engine.js) — IIFE pattern, yeni modul
+- Metrik kaynagi: Zabbix (Story 7.2) + FlowAnalyzer (Story 7.5) — her ikisi bagimlilik
+- QoE skoru: agirlikli formul (latency 0.30, jitter 0.20, loss 0.25, throughput 0.25)
+- Bufferbloat tespiti: loaded vs unloaded latency farki >%200
+- Preseem modeli ilham kaynagi (endustriyel QoE cozumu)
+- AQM onerisi: FQ-CoDel (MikroTik RouterOS v7+) veya CAKE
+- IndexedDB kullan (QoE zaman serisi verileri buyuk)
+
+### Story 7.7: Abone Self-Servis Portali
+
+As a internet abonesi,
+I want kendi web panelimden faturami gorebilmek, paketimi degistirebilmek, hiz testi yapabilmek ve destek talebi acabilmek,
+So that cagri merkezini aramadan islemlerimi kendim halledebileyim.
+
+**Acceptance Criteria:**
+
+**Given** abone portalina giris yapildiginda
+**When** ana sayfa yuklendiginde
+**Then** abone dashboard'u gosterilmeli (paket, kullanim, fatura, baglanti durumu)
+
+**Given** abone fatura bolumune gectiginde
+**When** fatura listesi goruntulendiginde
+**Then** gecmis faturalar, detay, PDF indirme ve odeme gecmisi gorulebilmeli
+
+**Given** abone paket degisikligi yapmak istediginde
+**When** paket yonetim sayfasina gectiginde
+**Then** paket karsilastirma ve degisiklik talebi olusturulabilmeli
+
+**Given** abone hiz testi yapmak istediginde
+**When** hiz testi butonuna bastiginda
+**Then** download/upload hiz, latency ve jitter olculebilmeli
+**And** sonuclar QoE skoruyla iliskilendirilmeli
+
+**Given** abone destek talebi acmak istediginde
+**When** destek sayfasina gectiginde
+**Then** yeni talep olusturma, mevcut talep izleme ve SSS goruntulenebilmeli
+**And** talep olusturuldugunda otomatik diagnostik raporu eklenmeli
+
+**Given** abone WiFi ayarlarini degistirmek istediginde
+**When** WiFi yonetim sayfasina gectiginde
+**Then** SSID, sifre degistirme ve bagli cihazlar listelenebilmeli
+**And** degisiklikler TR-069 ACS uzerinden CPE cihazina push edilmeli
+
+**Teknik Notlar:**
+- Chrome Extension'dan BAGIMSIZ web uygulamasi — ayri deploy
+- Backend API gerekli (Node.js + Express/Fastify oneriliyor)
+- Mobil oncelikli responsive tasarim (aboneler telefondan erisecek)
+- Vanilla HTML/CSS/JS veya Alpine.js — bundler YASAK
+- ACS (Story 7.4) entegrasyonu: WiFi yonetimi, firmware bilgisi
+- QoE (Story 7.6) entegrasyonu: hiz testi sonuclari, kalite skoru
+- RADIUS entegrasyonu: fatura ve paket bilgileri mevcut RADIUS'tan cekilir
+- Referans platformlar: Splynx Customer Portal, Sonar
 
 ---
 

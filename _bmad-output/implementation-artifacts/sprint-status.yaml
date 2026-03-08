@@ -68,49 +68,63 @@ development_status:
   # Epic 3: Envanter, Maliyet ve Tek Ekran Yonetimi
   # NOT: Story 3.1, 3.2, 3.4 ozellikleri brownfield kodda mevcut (pre-BMAD).
   # Story 3.3 "Smart Bubbles UI" olarak guncellendi — henuz implement edilmedi.
-  epic-3: in-progress
+  epic-3: done
   3-1-otomatik-envanter-ve-malzeme-listesi: done
   3-2-katalog-fiyat-guncelleme-ve-maliyet-hesabi: done
-  3-3-smart-bubbles-ui-sistemi: backlog
+  3-3-smart-bubbles-ui-sistemi: done
   3-4-ada-bazli-listeleme-ve-durum-gostergeleri: done
   epic-3-retrospective: optional
 
   # Epic 4: Varyasyon Analizi ve Senaryo Karsilastirma
-  epic-4: in-progress
-  4-1-varyasyon-olusturma: review
-  4-2-senaryo-karsilastirma-tablosu: review
-  4-3-optimum-senaryo-secimi-ve-aktivasyon: review
+  epic-4: done
+  4-1-varyasyon-olusturma: done
+  4-2-senaryo-karsilastirma-tablosu: done
+  4-3-optimum-senaryo-secimi-ve-aktivasyon: done
   epic-4-retrospective: optional
 
   # Epic 5: Finansal Analiz ve Yatirim Yonetimi
-  epic-5: in-progress
-  5-1-aktif-ekipman-ve-yatirim-kalemi-tanimlama: review
-  5-2-modem-maliyet-yonetimi: review
-  5-3-toplam-yatirim-maliyeti-hesabi: review
-  5-4-mrr-projeksiyonu-ve-roi-hesabi: review
-  5-5a-taahut-ve-kampanya-model-tanimlama: review
-  5-5b-taahut-modeli-finansal-etki-hesabi: review
-  5-6-taahut-senaryo-karsilastirma: review
+  epic-5: done
+  5-1-aktif-ekipman-ve-yatirim-kalemi-tanimlama: done
+  5-2-modem-maliyet-yonetimi: done
+  5-3-toplam-yatirim-maliyeti-hesabi: done
+  5-4-mrr-projeksiyonu-ve-roi-hesabi: done
+  5-5a-taahut-ve-kampanya-model-tanimlama: done
+  5-5b-taahut-modeli-finansal-etki-hesabi: done
+  5-6-taahut-senaryo-karsilastirma: done
   epic-5-retrospective: optional
 
   # Epic 6: Pazarlama Stratejisi ve Bolgesel Planlama
-  epic-6: backlog
-  6-1-senaryo-verisi-saklama-ve-disa-aktarma: backlog
-  6-2-bolge-bazli-pazarlama-stratejisi: backlog
-  6-3-isi-haritasi-gorsellestirme-ve-katman-yonetimi: backlog
-  6-4-isi-haritasi-ile-yatirim-onceliklendirme: backlog
-  6-5-komsu-ada-sematigi-ve-seri-planlama: backlog
+  epic-6: done
+  6-1-senaryo-verisi-saklama-ve-disa-aktarma: done
+  6-2-bolge-bazli-pazarlama-stratejisi: done
+  6-3-isi-haritasi-gorsellestirme-ve-katman-yonetimi: done
+  6-4-isi-haritasi-ile-yatirim-onceliklendirme: done
+  6-5-komsu-ada-sematigi-ve-seri-planlama: done
   epic-6-retrospective: optional
 
   # Epic 7: Canli Ag Izleme (Post-MVP)
-  epic-7: backlog
-  7-1-uisp-cihaz-durum-entegrasyonu: backlog
-  7-2-zabbix-ag-metrikleri-entegrasyonu: backlog
-  7-3-planlanan-vs-canli-ag-karsilastirma: backlog
+  # NOT: 7.1-7.3 story vizyonu guncellendi (2026-03-05):
+  #   7.1 = "Canli Izleme Harita Katmani" (adaptor mimarisi, Steve Jobs sadeligi)
+  #   7.2 = "Zabbix Metrik Grafikleri" (7.1'in uzantisi)
+  #   7.3 = "Karsilastirma Modu" (7.1'in bir modu)
+  #   7.4-7.7 = Bagimsiz alanlar (yonetim, trafik, QoE, portal) — kapsam notu eklendi
+  epic-7: done
+  7-1-canli-izleme-harita-katmani: done                # Gemini + Claude review tamamlandi (2026-03-07)
+  7-2-zabbix-metrik-grafikleri: done                   # Gemini + Claude review tamamlandi (2026-03-07)
+  7-3-planlanan-vs-canli-karsilastirma: done           # Gemini + Claude review tamamlandi (2026-03-07)
+  7-4-tr069-acs-ztp-ve-firmware-yonetimi: done         # Gemini + Claude review tamamlandi (2026-03-07)
+  7-5-netflow-sflow-trafik-analizi: done               # Gemini + Claude review tamamlandi (2026-03-07)
+  7-6-qoe-quality-of-experience-motoru: done           # Gemini + Claude review tamamlandi (2026-03-07)
+  7-7-abone-self-servis-portali: done                  # Gemini + Claude review tamamlandi (2026-03-07)
   epic-7-retrospective: optional
 
   # Epic 8: AI Destekli Proaktif Ariza Yonetimi (Vizyon)
-  epic-8: in-progress
+  epic-8: done
   8-1-anomali-tespiti-ve-ariza-tahmini: done
-  8-2-otomatik-uyari-ve-onleyici-bakim: backlog
+  8-2-otomatik-uyari-ve-onleyici-bakim: done
   epic-8-retrospective: optional
+
+  # Epic 9: Kullanici Deneyimi Iyilestirmeleri
+  epic-9: in-progress
+  9-1-binalar-arasi-ada-tasima: ready-for-dev
+  epic-9-retrospective: optional

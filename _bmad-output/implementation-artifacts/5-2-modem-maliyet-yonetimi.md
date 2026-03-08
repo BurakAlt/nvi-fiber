@@ -1,6 +1,6 @@
 # Story 5.2: Modem Maliyet Yonetimi
 
-Status: review
+Status: done
 
 ## Story
 

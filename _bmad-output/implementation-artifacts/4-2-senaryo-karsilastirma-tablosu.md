@@ -1,6 +1,6 @@
 # Story 4.2: Senaryo Karsilastirma Tablosu
 
-Status: review
+Status: done
 
 ## Story
 

@@ -1,6 +1,6 @@
 # Story 5.6: Taahut Senaryo Karsilastirma
 
-Status: review
+Status: done
 
 ## Story
 
