@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FTTH Ring Topoloji - Çankırı Merkez</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: #1e293b;
+    --fiber-yellow: #facc15;
+    --fiber-orange: #f97316;
+    --fiber-blue: #3b82f6;
+    --fiber-cyan: #06b6d4;
+    --fiber-green: #22c55e;
+    --fiber-red: #ef4444;
+    --fiber-purple: #a855f7;
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --text-bright: #f8fafc;
+    --olt-glow: #facc15;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Outfit', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .page-header {
+    text-align: center;
+    padding: 40px 20px 20px;
+    position: relative;
+  }
+
+  .page-header::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 200px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--fiber-yellow), transparent);
+  }
+
+  .page-header h1 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--fiber-yellow);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .page-header p {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    margin-top: 8px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* ─── TOPOLOGY DIAGRAM ─── */
+  .topology-section {
+    padding: 30px 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .section-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--fiber-cyan);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .section-title::before {
+    content: '';
+    width: 12px;
+    height: 2px;
+    background: var(--fiber-cyan);
+  }
+
+  .topology-canvas {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    overflow-x: auto;
+  }
+
+  svg.topo {
+    width: 100%;
+    min-width: 1200px;
+    height: 520px;
+    display: block;
+  }
+
+  /* ─── TABLES SECTION ─── */
+  .tables-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 20px 40px;
+  }
+
+  @media (max-width: 900px) {
+    .tables-grid { grid-template-columns: 1fr; }
+  }
+
+  .info-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .info-card.full-width {
+    grid-column: 1 / -1;
+  }
+
+  .card-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .card-header .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .card-header h3 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .card-body {
+    padding: 16px 20px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+  }
+
+  thead th {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 8px 10px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+
+  tbody td {
+    padding: 10px 10px;
+    border-bottom: 1px solid rgba(30,41,59,0.5);
+    vertical-align: middle;
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+
+  tbody tr:hover { background: rgba(250,204,21,0.03); }
+
+  .kor-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 600;
+  }
+
+  .kor-12 { background: rgba(168,85,247,0.15); color: #c084fc; border: 1px solid rgba(168,85,247,0.3); }
+  .kor-8 { background: rgba(59,130,246,0.15); color: #93c5fd; border: 1px solid rgba(59,130,246,0.3); }
+  .kor-4 { background: rgba(34,197,94,0.15); color: #86efac; border: 1px solid rgba(34,197,94,0.3); }
+
+  .splitter-badge {
+    display: inline-flex;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 600;
+    background: rgba(6,182,212,0.12);
+    color: #67e8f9;
+    border: 1px solid rgba(6,182,212,0.25);
+  }
+
+  .highlight-row { background: rgba(250,204,21,0.06); }
+
+  .stat-row {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 20px 24px;
+  }
+
+  .stat-box {
+    flex: 1;
+    min-width: 150px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    text-align: center;
+  }
+
+  .stat-box .val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--fiber-yellow);
+  }
+
+  .stat-box .lbl {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    margin-top: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .legend-row {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 10px 0 0;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.72rem;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-dim);
+  }
+
+  .legend-line {
+    width: 24px;
+    height: 3px;
+    border-radius: 2px;
+  }
+
+  .pros-cons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 20px 40px;
+  }
+
+  @media (max-width: 700px) {
+    .pros-cons { grid-template-columns: 1fr; }
+  }
+
+  .pro-con-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+
+  .pro-con-card h4 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .pro-con-card ul {
+    list-style: none;
+    padding: 0;
+  }
+
+  .pro-con-card li {
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(30,41,59,0.4);
+    font-size: 0.82rem;
+    color: var(--text);
+    line-height: 1.5;
+    padding-left: 18px;
+    position: relative;
+  }
+
+  .pro-con-card li:last-child { border-bottom: none; }
+
+  .pro-con-card li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 14px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+
+  .pros li::before { background: var(--fiber-green); }
+  .cons li::before { background: var(--fiber-red); }
+
+  /* Animations */
+  @keyframes dashFlow {
+    to { stroke-dashoffset: -20; }
+  }
+
+  .ring-line {
+    stroke-dasharray: 8 6;
+    animation: dashFlow 1.5s linear infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.6; r: 6; }
+    50% { opacity: 1; r: 9; }
+  }
+
+  .olt-pulse {
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .topology-section, .stat-row, .tables-grid, .pros-cons {
+    animation: fadeUp 0.6s ease-out both;
+  }
+
+  .stat-row { animation-delay: 0.1s; }
+  .tables-grid { animation-delay: 0.2s; }
+  .pros-cons { animation-delay: 0.3s; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>FTTH Ring Topoloji Şeması</h1>
+  <p>Çankırı Merkez · 10 Bina · 143 BB · Tek PON · Bina 6 Merkez OLT</p>
+</div>
+
+<!-- STATS -->
+<div class="stat-row">
+  <div class="stat-box"><div class="val">143</div><div class="lbl">Toplam BB</div></div>
+  <div class="stat-box"><div class="val">100</div><div class="lbl">%70 Hedef</div></div>
+  <div class="stat-box"><div class="val">1</div><div class="lbl">PON Port</div></div>
+  <div class="stat-box"><div class="val">10</div><div class="lbl">Bina</div></div>
+  <div class="stat-box"><div class="val">12</div><div class="lbl">Splitter</div></div>
+  <div class="stat-box"><div class="val">~2 km</div><div class="lbl">Toplam Fiber</div></div>
+</div>
+
+<!-- TOPOLOGY DIAGRAM -->
+<div class="topology-section">
+  <div class="section-title">Ring Topoloji Diyagramı</div>
+  <div class="topology-canvas">
+    <svg class="topo" viewBox="0 0 1200 520">
+      <defs>
+        <filter id="glow-yellow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="4" result="blur"/>
+          <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+        </filter>
+        <filter id="glow-cyan" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="3" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <linearGradient id="grad-left" x1="1" y1="0" x2="0" y2="0">
+          <stop offset="0%" stop-color="#a855f7"/>
+          <stop offset="100%" stop-color="#3b82f6"/>
+        </linearGradient>
+        <linearGradient id="grad-right" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#f97316"/>
+          <stop offset="100%" stop-color="#ef4444"/>
+        </linearGradient>
+        <marker id="arrow-left" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+          <path d="M0,5 L10,0 L10,10Z" fill="#93c5fd"/>
+        </marker>
+        <marker id="arrow-right" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+          <path d="M0,0 L10,5 L0,10Z" fill="#fca5a5"/>
+        </marker>
+      </defs>
+
+      <!-- Background grid -->
+      <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(30,41,59,0.4)" stroke-width="0.5"/>
+      </pattern>
+      <rect width="1200" height="520" fill="url(#grid)"/>
+
+      <!-- === LEFT ARM: Bina 5 → 4 → 3 → 2 → 1 === -->
+      <!-- Backbone cables left -->
+      <line x1="540" y1="250" x2="440" y2="250" stroke="#a855f7" stroke-width="3" opacity="0.8"/>
+      <text x="490" y="238" fill="#c084fc" font-size="10" font-family="JetBrains Mono" text-anchor="middle">12 kor</text>
+
+      <line x1="440" y1="250" x2="340" y2="250" stroke="#3b82f6" stroke-width="2.5" opacity="0.8"/>
+      <text x="390" y="238" fill="#93c5fd" font-size="10" font-family="JetBrains Mono" text-anchor="middle">8 kor</text>
+
+      <line x1="340" y1="250" x2="240" y2="250" stroke="#3b82f6" stroke-width="2.5" opacity="0.8"/>
+      <text x="290" y="238" fill="#93c5fd" font-size="10" font-family="JetBrains Mono" text-anchor="middle">8 kor</text>
+
+      <line x1="240" y1="250" x2="140" y2="250" stroke="#3b82f6" stroke-width="2.5" opacity="0.8"/>
+      <text x="190" y="238" fill="#93c5fd" font-size="10" font-family="JetBrains Mono" text-anchor="middle">8 kor</text>
+
+      <line x1="140" y1="250" x2="55" y2="250" stroke="#3b82f6" stroke-width="2.5" opacity="0.8"/>
+      <text x="97" y="238" fill="#93c5fd" font-size="10" font-family="JetBrains Mono" text-anchor="middle">8 kor</text>
+
+      <!-- Direction arrows left -->
+      <text x="485" y="264" fill="#c084fc" font-size="13" font-family="JetBrains Mono" text-anchor="middle">←</text>
+      <text x="385" y="264" fill="#93c5fd" font-size="13" font-family="JetBrains Mono" text-anchor="middle">←</text>
+      <text x="285" y="264" fill="#93c5fd" font-size="13" font-family="JetBrains Mono" text-anchor="middle">←</text>
+      <text x="185" y="264" fill="#93c5fd" font-size="13" font-family="JetBrains Mono" text-anchor="middle">←</text>
+      <text x="92" y="264" fill="#93c5fd" font-size="13" font-family="JetBrains Mono" text-anchor="middle">←</text>
+
+      <!-- === RIGHT ARM: Bina 7 → 8 → 9 → 10 === -->
+      <line x1="660" y1="250" x2="760" y2="250" stroke="#f97316" stroke-width="3" opacity="0.8"/>
+      <text x="710" y="238" fill="#fdba74" font-size="10" font-family="JetBrains Mono" text-anchor="middle">12 kor</text>
+
+      <line x1="760" y1="250" x2="860" y2="250" stroke="#3b82f6" stroke-width="2.5" opacity="0.8"/>
+      <text x="810" y="238" fill="#93c5fd" font-size="10" font-family="JetBrains Mono" text-anchor="middle">8 kor</text>
+
+      <line x1="860" y1="250" x2="960" y2="250" stroke="#3b82f6" stroke-width="2.5" opacity="0.8"/>
+      <text x="910" y="238" fill="#93c5fd" font-size="10" font-family="JetBrains Mono" text-anchor="middle">8 kor</text>
+
+      <line x1="960" y1="250" x2="1060" y2="250" stroke="#3b82f6" stroke-width="2.5" opacity="0.8"/>
+      <text x="1010" y="238" fill="#93c5fd" font-size="10" font-family="JetBrains Mono" text-anchor="middle">8 kor</text>
+
+      <!-- Direction arrows right -->
+      <text x="715" y="264" fill="#fdba74" font-size="13" font-family="JetBrains Mono" text-anchor="middle">→</text>
+      <text x="815" y="264" fill="#93c5fd" font-size="13" font-family="JetBrains Mono" text-anchor="middle">→</text>
+      <text x="915" y="264" fill="#93c5fd" font-size="13" font-family="JetBrains Mono" text-anchor="middle">→</text>
+      <text x="1015" y="264" fill="#93c5fd" font-size="13" font-family="JetBrains Mono" text-anchor="middle">→</text>
+
+      <!-- === RING CLOSURE: Bina 1 ↔ Bina 10 (bottom arc) === -->
+      <path d="M 55 270 Q 55 440, 300 460 Q 560 480, 800 460 Q 1060 440, 1060 270"
+            fill="none" stroke="#22c55e" stroke-width="2" stroke-dasharray="8 6" opacity="0.6"
+            class="ring-line"/>
+      <text x="560" y="475" fill="#86efac" font-size="11" font-family="JetBrains Mono" text-anchor="middle">RING KAPAMA · 4 kor</text>
+
+      <!-- === BUILDING NODES === -->
+      <!-- Bina 1 -->
+      <g>
+        <rect x="25" y="220" width="60" height="60" rx="8" fill="#1e293b" stroke="#3b82f6" stroke-width="1.5"/>
+        <text x="55" y="200" fill="#93c5fd" font-size="11" font-family="JetBrains Mono" font-weight="700" text-anchor="middle">Bina 1</text>
+        <text x="55" y="248" fill="#f8fafc" font-size="18" font-family="JetBrains Mono" font-weight="700" text-anchor="middle">21</text>
+        <text x="55" y="268" fill="#94a3b8" font-size="8" font-family="JetBrains Mono" text-anchor="middle">BB</text>
+        <!-- Splitter info -->
+        <rect x="15" y="290" width="80" height="34" rx="6" fill="rgba(6,182,212,0.1)" stroke="rgba(6,182,212,0.3)" stroke-width="1"/>
+        <text x="55" y="304" fill="#67e8f9" font-size="8" font-family="JetBrains Mono" font-weight="600" text-anchor="middle">1:16 + 1:8</text>
+        <text x="55" y="317" fill="#94a3b8" font-size="7" font-family="JetBrains Mono" text-anchor="middle">24 port</text>
+      </g>
+
+      <!-- Bina 2 -->
+      <g>
+        <rect x="110" y="220" width="60" height="60" rx="8" fill="#1e293b" stroke="#3b82f6" stroke-width="1.5"/>
+        <text x="140" y="200" fill="#93c5fd" font-size="11" font-family="JetBrains Mono" font-weight="700" text-anchor="middle">Bina 2</text>
+        <text x="140" y="248" fill="#f8fafc" font-size="18" font-family="JetBrains Mono" font-weight="700" text-anchor="middle">13</text>
+        <text x="140" y="268" fill="#94a3b8" font-size="8" font-family="JetBrains Mono" text-anchor="middle">BB</text>
+        <rect x="105" y="290" width="70" height="34" rx="6" fill="rgba(6,182,212,0.1)" stroke="rgba(6,182,212,0.3)" stroke-width="1"/>
+        <text x="140" y="304" fill="#67e8f9" font-size="8" font-family="JetBrains Mono" font-weight="600" text-anchor="middle">1:16</text>
+        <text x="140" y="317" fill="#94a3b8" font-size="7" font-family="JetBrains Mono" text-anchor="middle">16 port</text>
+      </g>
+
+      <!-- Bina 3 -->
+      <g>
+        <rect x="210" y="220" width="60" height="60" rx="8" fill="#1e293b" stroke="#3b82f6" stroke-width="1.5"/>
+        <text x="240" y="200" fill="#93c5fd" font-size="11" font-family="JetBrains Mono" font-weight="700" text-anchor="middle">Bina 3</text>
+        <text x="240" y="248" fill="#f8fafc" font-size="18" font-family="JetBrains Mono" font-weight="700" text-anchor="middle">10</text>
+        <text x="240" y="268" fill="#94a3b8" font-size="8" font-family="JetBrains Mono" text-anchor="middle">BB</text>
+        <rect x="205" y="290" width="70" height="34" rx="6" fill="rgba(6,182,212,0.1)" stroke="rgba(6,182,212,0.3)" stroke-width="1"/>
+        <text x="240" y="304" fill="#67e8f9" font-size="8" font-family="JetBrains Mono" font-weight="600" text-anchor="middle">1:16</text>
+        <text x="240" y="317" fill="#94a3b8" font-size="7" font-family="JetBrains Mono" text-anchor="middle">16 port</text>
+      </g>
+
+      <!-- Bina 4 -->
+      <g>
+        <rect x="310" y="220" width="60" height="60" rx="8" fill="#1e293b" stroke="#3b82f6" stroke-width="1.5"/>
+        <text x="340" y="200" fill="#93c5fd" font-size="11" font-family="JetBrains Mono" font-weight="700" text-anchor="middle">Bina 4</text>
+        <text x="340" y="248" fill="#f8fafc" font-size="18" font-family="JetBrains Mono" font-weight="700" text-anchor="middle">7</text>
+        <text x="340" y="268" fill="#94a3b8" font-size="8" font-family="JetBrains Mono" text-anchor="middle">BB</text>
+        <rect x="305" y="290" width="70" height="34" rx="6" fill="rgba(6,182,212,0.1)" stroke="rgba(6,182,212,0.3)" stroke-width="1"/>
+        <text x="340" y="304" fill="#67e8f9" font-size="8" font-family="JetBrains Mono" font-weight="600" text-anchor="middle">1:8</text>
+        <text x="340" y="317" fill="#94a3b8" font-size="7" font-family="JetBrains Mono" text-anchor="middle">8 port</text>
+      </g>
+
+      <!-- Bina 5 -->
+      <g>
+        <rect x="410" y="220" width="60" height="60" rx="8" fill="#1e293b" stroke="#3b82f6" stroke-width="1.5"/>
+        <text x="440" y="200" fill="#93c5fd" font-size="11" font-family="JetBrains Mono" font-weight="700" text-anchor="middle">Bina 5</text>
+        <text x="440" y="248" fill="#f8fafc" font-size="18" font-family="JetBrains Mono" font-weight="700" text-anchor="middle">16</text>
+        <text x="440" y="268" fill="#94a3b8" font-size="8" font-family="JetBrains Mono" text-anchor="middle">BB</text>
+        <rect x="405" y="290" width="70" height="34" rx="6" fill="rgba(6,182,212,0.1)" stroke="rgba(6,182,212,0.3)" stroke-width="1"/>
+        <text x="440" y="304" fill="#67e8f9" font-size="8" font-family="JetBrains Mono" font-weight="600" text-anchor="middle">1:16</text>
+        <text x="440" y="317" fill="#94a3b8" font-size="7" font-family="JetBrains Mono" text-anchor="middle">16 port</text>
+      </g>
+
+      <!-- === OLT / BİNA 6 (CENTER) === -->
+      <g filter="url(#glow-yellow)">
+        <rect x="555" y="195" width="90" height="110" rx="12" fill="#1a1500" stroke="#facc15" stroke-width="2.5"/>
+        <circle cx="600" cy="195" r="6" fill="#facc15" class="olt-pulse"/>
+        <text x="600" y="160" fill="#facc15" font-size="13" font-family="JetBrains Mono" font-weight="800" text-anchor="middle">★ OLT ★</text>
+        <text x="600" y="177" fill="#fde68a" font-size="10" font-family="JetBrains Mono" text-anchor="middle">Bina 6 · Merkez</text>
+        <text x="600" y="230" fill="#f8fafc" font-size="22" font-family="JetBrains Mono" font-weight="700" text-anchor="middle">12</text>
+        <text x="600" y="248" fill="#fde68a" font-size="9" font-family="JetBrains Mono" text-anchor="middle">BB</text>
+
+        <!-- 1. Kademe splitter -->
+        <rect x="562" y="260" width="76" height="20" rx="4" fill="rgba(250,204,21,0.15)" stroke="rgba(250,204,21,0.4)" stroke-width="1"/>
+        <text x="600" y="274" fill="#fde68a" font-size="8" font-family="JetBrains Mono" font-weight="700" text-anchor="middle">1:8 ANA SPL</text>
+
+        <rect x="555" y="290" width="90" height="34" rx="6" fill="rgba(6,182,212,0.1)" stroke="rgba(6,182,212,0.3)" stroke-width="1"/>
+        <text x="600" y="304" fill="#67e8f9" font-size="8" font-family="JetBrains Mono" font-weight="600" text-anchor="middle">Lokal: 1:16</text>
+        <text x="600" y="317" fill="#94a3b8" font-size="7" font-family="JetBrains Mono" text-anchor="middle">16 port</text>
+      </g>
+
+      <!-- 1:8 çıkış okları -->
+      <line x1="562" y1="270" x2="540" y2="250" stroke="#facc15" stroke-width="1.5" opacity="0.5"/>
+      <line x1="638" y1="270" x2="660" y2="250" stroke="#facc15" stroke-width="1.5" opacity="0.5"/>
+      <text x="530" y="278" fill="#fde68a" font-size="7" font-family="JetBrains Mono" text-anchor="end">Sol Kol</text>
+      <text x="670" y="278" fill="#fde68a" font-size="7" font-family="JetBrains Mono" text-anchor="start">Sağ Kol</text>
+
+      <!-- === RIGHT ARM BUILDINGS === -->
+      <!-- Bina 7 -->
+      <g>
+        <rect x="730" y="220" width="60" height="60" rx="8" fill="#1e293b" stroke="#f97316" stroke-width="1.5"/>
+        <text x="760" y="200" fill="#fdba74" font-size="11" font-family="JetBrains Mono" font-weight="700" text-anchor="middle">Bina 7</text>
+        <text x="760" y="248" fill="#f8fafc" font-size="18" font-family="JetBrains Mono" font-weight="700" text-anchor="middle">21</text>
+        <text x="760" y="268" fill="#94a3b8" font-size="8" font-family="JetBrains Mono" text-anchor="middle">BB</text>
+        <rect x="715" y="290" width="90" height="34" rx="6" fill="rgba(6,182,212,0.1)" stroke="rgba(6,182,212,0.3)" stroke-width="1"/>
+        <text x="760" y="304" fill="#67e8f9" font-size="8" font-family="JetBrains Mono" font-weight="600" text-anchor="middle">1:16 + 1:8</text>
+        <text x="760" y="317" fill="#94a3b8" font-size="7" font-family="JetBrains Mono" text-anchor="middle">24 port</text>
+      </g>
+
+      <!-- Bina 8 -->
+      <g>
+        <rect x="830" y="220" width="60" height="60" rx="8" fill="#1e293b" stroke="#f97316" stroke-width="1.5"/>
+        <text x="860" y="200" fill="#fdba74" font-size="11" font-family="JetBrains Mono" font-weight="700" text-anchor="middle">Bina 8</text>
+        <text x="860" y="248" fill="#f8fafc" font-size="18" font-family="JetBrains Mono" font-weight="700" text-anchor="middle">15</text>
+        <text x="860" y="268" fill="#94a3b8" font-size="8" font-family="JetBrains Mono" text-anchor="middle">BB</text>
+        <rect x="825" y="290" width="70" height="34" rx="6" fill="rgba(6,182,212,0.1)" stroke="rgba(6,182,212,0.3)" stroke-width="1"/>
+        <text x="860" y="304" fill="#67e8f9" font-size="8" font-family="JetBrains Mono" font-weight="600" text-anchor="middle">1:16</text>
+        <text x="860" y="317" fill="#94a3b8" font-size="7" font-family="JetBrains Mono" text-anchor="middle">16 port</text>
+      </g>
+
+      <!-- Bina 9 -->
+      <g>
+        <rect x="930" y="220" width="60" height="60" rx="8" fill="#1e293b" stroke="#f97316" stroke-width="1.5"/>
+        <text x="960" y="200" fill="#fdba74" font-size="11" font-family="JetBrains Mono" font-weight="700" text-anchor="middle">Bina 9</text>
+        <text x="960" y="248" fill="#f8fafc" font-size="18" font-family="JetBrains Mono" font-weight="700" text-anchor="middle">11</text>
+        <text x="960" y="268" fill="#94a3b8" font-size="8" font-family="JetBrains Mono" text-anchor="middle">BB</text>
+        <rect x="925" y="290" width="70" height="34" rx="6" fill="rgba(6,182,212,0.1)" stroke="rgba(6,182,212,0.3)" stroke-width="1"/>
+        <text x="960" y="304" fill="#67e8f9" font-size="8" font-family="JetBrains Mono" font-weight="600" text-anchor="middle">1:16</text>
+        <text x="960" y="317" fill="#94a3b8" font-size="7" font-family="JetBrains Mono" text-anchor="middle">16 port</text>
+      </g>
+
+      <!-- Bina 10 -->
+      <g>
+        <rect x="1030" y="220" width="60" height="60" rx="8" fill="#1e293b" stroke="#f97316" stroke-width="1.5"/>
+        <text x="1060" y="200" fill="#fdba74" font-size="11" font-family="JetBrains Mono" font-weight="700" text-anchor="middle">Bina 10</text>
+        <text x="1060" y="248" fill="#f8fafc" font-size="18" font-family="JetBrains Mono" font-weight="700" text-anchor="middle">17</text>
+        <text x="1060" y="268" fill="#94a3b8" font-size="8" font-family="JetBrains Mono" text-anchor="middle">BB</text>
+        <rect x="1025" y="290" width="70" height="34" rx="6" fill="rgba(6,182,212,0.1)" stroke="rgba(6,182,212,0.3)" stroke-width="1"/>
+        <text x="1060" y="304" fill="#67e8f9" font-size="8" font-family="JetBrains Mono" font-weight="600" text-anchor="middle">1:16</text>
+        <text x="1060" y="317" fill="#94a3b8" font-size="7" font-family="JetBrains Mono" text-anchor="middle">16 port</text>
+      </g>
+
+      <!-- ARM LABELS -->
+      <rect x="180" y="340" width="180" height="26" rx="6" fill="rgba(59,130,246,0.08)" stroke="rgba(59,130,246,0.2)" stroke-width="1"/>
+      <text x="270" y="357" fill="#93c5fd" font-size="10" font-family="JetBrains Mono" font-weight="600" text-anchor="middle">← SOL KOL · 67 BB</text>
+
+      <rect x="820" y="340" width="180" height="26" rx="6" fill="rgba(249,115,22,0.08)" stroke="rgba(249,115,22,0.2)" stroke-width="1"/>
+      <text x="910" y="357" fill="#fdba74" font-size="10" font-family="JetBrains Mono" font-weight="600" text-anchor="middle">SAĞ KOL · 76 BB →</text>
+
+      <!-- LEGEND -->
+      <g transform="translate(340, 400)">
+        <rect x="0" y="0" width="520" height="70" rx="8" fill="rgba(17,24,39,0.8)" stroke="var(--border)" stroke-width="1"/>
+        <text x="260" y="20" fill="#94a3b8" font-size="9" font-family="JetBrains Mono" font-weight="600" text-anchor="middle" letter-spacing="2">LEJANT</text>
+
+        <line x1="30" y1="40" x2="60" y2="40" stroke="#a855f7" stroke-width="3"/>
+        <text x="68" y="44" fill="#c084fc" font-size="9" font-family="JetBrains Mono">12 kor kablo</text>
+
+        <line x1="170" y1="40" x2="200" y2="40" stroke="#3b82f6" stroke-width="2.5"/>
+        <text x="208" y="44" fill="#93c5fd" font-size="9" font-family="JetBrains Mono">8 kor kablo</text>
+
+        <line x1="300" y1="40" x2="330" y2="40" stroke="#22c55e" stroke-width="2" stroke-dasharray="6 4"/>
+        <text x="338" y="44" fill="#86efac" font-size="9" font-family="JetBrains Mono">4 kor ring</text>
+
+        <rect x="420" y="32" width="14" height="14" rx="3" fill="#1a1500" stroke="#facc15" stroke-width="1.5"/>
+        <text x="442" y="44" fill="#fde68a" font-size="9" font-family="JetBrains Mono">OLT Merkez</text>
+
+        <line x1="30" y1="58" x2="60" y2="58" stroke="#f97316" stroke-width="3"/>
+        <text x="68" y="62" fill="#fdba74" font-size="9" font-family="JetBrains Mono">12 kor (sağ kol)</text>
+
+        <rect x="200" y="50" width="14" height="14" rx="3" fill="#1e293b" stroke="#3b82f6" stroke-width="1.5"/>
+        <text x="222" y="62" fill="#93c5fd" font-size="9" font-family="JetBrains Mono">Sol kol bina</text>
+
+        <rect x="340" y="50" width="14" height="14" rx="3" fill="#1e293b" stroke="#f97316" stroke-width="1.5"/>
+        <text x="362" y="62" fill="#fdba74" font-size="9" font-family="JetBrains Mono">Sağ kol bina</text>
+      </g>
+
+      <!-- Optik bütçe notu -->
+      <text x="600" y="510" fill="#64748b" font-size="9" font-family="JetBrains Mono" text-anchor="middle">
+        Max Optik Kayıp: 26.5 dB (Bina 1) · GPON Bütçe: 28 dB · Marj: 1.5 dB ✓
+      </text>
+    </svg>
+  </div>
+</div>
+
+<!-- DETAIL TABLES -->
+<div class="tables-grid">
+
+  <!-- Splitter Tablosu -->
+  <div class="info-card">
+    <div class="card-header">
+      <div class="dot" style="background: var(--fiber-cyan)"></div>
+      <h3>Bina Bazlı Splitter Planı</h3>
+    </div>
+    <div class="card-body">
+      <table>
+        <thead><tr><th>Bina</th><th>BB</th><th>Splitter</th><th>Port</th><th>%70 Abone</th></tr></thead>
+        <tbody>
+          <tr><td>Bina 1</td><td>21</td><td><span class="splitter-badge">1:16 + 1:8</span></td><td>24</td><td>15</td></tr>
+          <tr><td>Bina 2</td><td>13</td><td><span class="splitter-badge">1:16</span></td><td>16</td><td>9</td></tr>
+          <tr><td>Bina 3</td><td>10</td><td><span class="splitter-badge">1:16</span></td><td>16</td><td>7</td></tr>
+          <tr><td>Bina 4</td><td>7</td><td><span class="splitter-badge">1:8</span></td><td>8</td><td>5</td></tr>
+          <tr><td>Bina 5</td><td>16</td><td><span class="splitter-badge">1:16</span></td><td>16</td><td>11</td></tr>
+          <tr class="highlight-row"><td><strong>Bina 6 ★</strong></td><td>12</td><td><span class="splitter-badge">1:8 + 1:16</span></td><td>8+16</td><td>8</td></tr>
+          <tr><td>Bina 7</td><td>21</td><td><span class="splitter-badge">1:16 + 1:8</span></td><td>24</td><td>15</td></tr>
+          <tr><td>Bina 8</td><td>15</td><td><span class="splitter-badge">1:16</span></td><td>16</td><td>11</td></tr>
+          <tr><td>Bina 9</td><td>11</td><td><span class="splitter-badge">1:16</span></td><td>16</td><td>8</td></tr>
+          <tr><td>Bina 10</td><td>17</td><td><span class="splitter-badge">1:16</span></td><td>16</td><td>12</td></tr>
+          <tr style="border-top: 2px solid var(--border)"><td><strong>TOPLAM</strong></td><td><strong>143</strong></td><td><strong>12 adet</strong></td><td></td><td><strong>~100</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Kablo Tablosu -->
+  <div class="info-card">
+    <div class="card-header">
+      <div class="dot" style="background: var(--fiber-purple)"></div>
+      <h3>Segment Bazlı Kablo Planı</h3>
+    </div>
+    <div class="card-body">
+      <table>
+        <thead><tr><th>Segment</th><th>Kor</th><th>Yön</th></tr></thead>
+        <tbody>
+          <tr><td>OLT → Bina 5</td><td><span class="kor-badge kor-12">● 12 kor</span></td><td>Sol</td></tr>
+          <tr><td>Bina 5 → 4</td><td><span class="kor-badge kor-8">● 8 kor</span></td><td>Sol</td></tr>
+          <tr><td>Bina 4 → 3</td><td><span class="kor-badge kor-8">● 8 kor</span></td><td>Sol</td></tr>
+          <tr><td>Bina 3 → 2</td><td><span class="kor-badge kor-8">● 8 kor</span></td><td>Sol</td></tr>
+          <tr><td>Bina 2 → 1</td><td><span class="kor-badge kor-8">● 8 kor</span></td><td>Sol</td></tr>
+          <tr><td>OLT → Bina 7</td><td><span class="kor-badge kor-12">● 12 kor</span></td><td>Sağ</td></tr>
+          <tr><td>Bina 7 → 8</td><td><span class="kor-badge kor-8">● 8 kor</span></td><td>Sağ</td></tr>
+          <tr><td>Bina 8 → 9</td><td><span class="kor-badge kor-8">● 8 kor</span></td><td>Sağ</td></tr>
+          <tr><td>Bina 9 → 10</td><td><span class="kor-badge kor-8">● 8 kor</span></td><td>Sağ</td></tr>
+          <tr><td>Bina 1 ↔ 10</td><td><span class="kor-badge kor-4">● 4 kor</span></td><td>Ring</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- OLT 1:8 Dağıtım -->
+  <div class="info-card full-width">
+    <div class="card-header">
+      <div class="dot" style="background: var(--fiber-yellow)"></div>
+      <h3>OLT 1:8 Ana Splitter Çıkış Dağıtımı (Bina 6)</h3>
+    </div>
+    <div class="card-body">
+      <table>
+        <thead><tr><th>Çıkış</th><th>Hedef</th><th>Açıklama</th></tr></thead>
+        <tbody>
+          <tr><td><strong>1</strong></td><td>Sol Kol Backbone</td><td>Bina 5 → 4 → 3 → 2 → 1(a) ana dağıtım</td></tr>
+          <tr><td><strong>2</strong></td><td>Bina 1 Ek Splitter</td><td>21 BB için çift splitter (1:8 ek)</td></tr>
+          <tr><td><strong>3</strong></td><td>Sağ Kol Backbone</td><td>Bina 7(a) → 8 → 9 → 10 ana dağıtım</td></tr>
+          <tr><td><strong>4</strong></td><td>Bina 7 Ek Splitter</td><td>21 BB için çift splitter (1:8 ek)</td></tr>
+          <tr><td><strong>5</strong></td><td>Bina 6 Lokal</td><td>1:16 ile kendi 12 BB'sine dağıtım</td></tr>
+          <tr><td><strong>6</strong></td><td>Ring Koruma</td><td>Bina 1 ↔ 10 arası redundancy hattı</td></tr>
+          <tr><td><strong>7</strong></td><td style="color: var(--text-dim)">Yedek</td><td style="color: var(--text-dim)">Gelecek genişleme</td></tr>
+          <tr><td><strong>8</strong></td><td style="color: var(--text-dim)">Yedek</td><td style="color: var(--text-dim)">Gelecek genişleme</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Optik Bütçe -->
+  <div class="info-card full-width">
+    <div class="card-header">
+      <div class="dot" style="background: var(--fiber-green)"></div>
+      <h3>Optik Bütçe Hesaplaması (En Kötü Senaryo)</h3>
+    </div>
+    <div class="card-body">
+      <table>
+        <thead><tr><th>Bina</th><th>1. Kademe</th><th>2. Kademe</th><th>Fiber+Kon.</th><th>Toplam dB</th><th>Marj</th></tr></thead>
+        <tbody>
+          <tr><td>Bina 1 (en uzak)</td><td>10.5 dB</td><td>14.0 dB</td><td>~2.0 dB</td><td><strong>26.5 dB</strong></td><td style="color:#22c55e">1.5 dB ✅</td></tr>
+          <tr><td>Bina 2</td><td>10.5 dB</td><td>14.0 dB</td><td>~1.5 dB</td><td><strong>26.0 dB</strong></td><td style="color:#22c55e">2.0 dB ✅</td></tr>
+          <tr><td>Bina 5</td><td>10.5 dB</td><td>14.0 dB</td><td>~0.5 dB</td><td><strong>25.0 dB</strong></td><td style="color:#22c55e">3.0 dB ✅</td></tr>
+          <tr class="highlight-row"><td>Bina 6 (yerel)</td><td>10.5 dB</td><td>14.0 dB</td><td>~0.2 dB</td><td><strong>24.7 dB</strong></td><td style="color:#22c55e">3.3 dB ✅</td></tr>
+          <tr><td>Bina 7</td><td>10.5 dB</td><td>14.0 dB</td><td>~0.5 dB</td><td><strong>25.0 dB</strong></td><td style="color:#22c55e">3.0 dB ✅</td></tr>
+          <tr><td>Bina 10 (en uzak sağ)</td><td>10.5 dB</td><td>14.0 dB</td><td>~2.0 dB</td><td><strong>26.5 dB</strong></td><td style="color:#22c55e">1.5 dB ✅</td></tr>
+        </tbody>
+      </table>
+      <p style="margin-top: 12px; font-size: 0.78rem; color: var(--text-dim); font-family: 'JetBrains Mono', monospace;">
+        GPON Class B+ Bütçe: 28 dB · Tüm binalar bütçe dahilinde · Min marj: 1.5 dB (Bina 1 & 10)
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- PROS / CONS -->
+<div class="pros-cons">
+  <div class="pro-con-card pros">
+    <h4><span style="color: var(--fiber-green)">✦</span> <span style="color: var(--fiber-green)">AVANTAJLAR</span></h4>
+    <ul>
+      <li>Tek OLT port + tek SFP modül ile düşük başlangıç maliyeti (%40-50 tasarruf)</li>
+      <li>Bina 6 merkezi konumu sayesinde optik bütçe dengeli dağılım</li>
+      <li>Tek yönetim noktası: basit VLAN, monitoring, operasyon</li>
+      <li>Ring kapama ile tek noktada kablo arızasında ters yönden servis imkanı</li>
+      <li>%70 hedefle 100 abone → 128 portta hâlâ genişleme alanı var</li>
+    </ul>
+  </div>
+  <div class="pro-con-card cons">
+    <h4><span style="color: var(--fiber-red)">✦</span> <span style="color: var(--fiber-red)">RİSKLER</span></h4>
+    <ul>
+      <li>2.5 Gbps paylaşım: 100 aboneyle kişi başı teorik max ~25 Mbps, yoğun saatlerde darboğaz</li>
+      <li>OLT/SFP arızası = 100 abonenin tamamı çöker (SPOF)</li>
+      <li>Optik bütçe marjı dar (1.5 dB) — konnektör kalitesi kritik, Class B+ şart</li>
+      <li>%70 üzeri penetrasyonda 128 port limiti — 2. port için splitter yeniden düzenleme</li>
+      <li>Bina 1 ve 7 çift splitter zorunluluğu 1:8'in 4/8 çıkışını kullanıyor</li>
+    </ul>
+  </div>
+</div>
+
+<div style="text-align:center; padding: 20px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;">
+  Altıparmak Telekom · FTTH Ring Planlama · Çankırı Merkez · Şubat 2026
+</div>
+
+</body>
+</html>

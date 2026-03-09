@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FiberPlan Dashboard</title>
+<link rel="stylesheet" href="../styles/overlay.css">
+<link rel="stylesheet" href="dashboard.css">
+<link rel="icon" href="../icons/favicon-32x32.png" type="image/png">
+</head>
+<body>
+<div id="db-app">
+
+  <!-- SIDEBAR -->
+  <nav id="db-sidebar">
+    <div class="db-sidebar-logo">
+      <span class="db-logo-icon">&#9670;</span>
+      <span class="db-logo-text">FIBERPLAN</span>
+    </div>
+    <div class="db-nav-items">
+      <button class="db-nav-item active" data-section="overview">
+        <span class="db-nav-icon">&#9638;</span>
+        <span class="db-nav-label">Genel Bakis</span>
+      </button>
+      <button class="db-nav-item" data-section="ada">
+        <span class="db-nav-icon">&#9964;</span>
+        <span class="db-nav-label">Ada Yonetimi</span>
+      </button>
+      <button class="db-nav-item" data-section="topology">
+        <span class="db-nav-icon">&#9676;</span>
+        <span class="db-nav-label">Topoloji</span>
+      </button>
+      <button class="db-nav-item" data-section="loss">
+        <span class="db-nav-icon">&#9735;</span>
+        <span class="db-nav-label">Kayip Butcesi</span>
+      </button>
+      <button class="db-nav-item" data-section="cable">
+        <span class="db-nav-icon">&#8212;</span>
+        <span class="db-nav-label">Kablo Plani</span>
+      </button>
+      <button class="db-nav-item" data-section="inventory">
+        <span class="db-nav-icon">&#9744;</span>
+        <span class="db-nav-label">Envanter</span>
+      </button>
+      <button class="db-nav-item" data-section="export">
+        <span class="db-nav-icon">&#8615;</span>
+        <span class="db-nav-label">Disari Aktar</span>
+      </button>
+      <button class="db-nav-item" data-section="gdrive">
+        <span class="db-nav-icon">&#9729;</span>
+        <span class="db-nav-label">Google Drive</span>
+      </button>
+    </div>
+    <div class="db-sidebar-footer">
+      <span class="db-version">v1.0</span>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <main id="db-main">
+    <header id="db-header">
+      <div class="db-header-left">
+        <h1 id="db-project-name">FTTH Fiber Plani</h1>
+        <span class="db-header-meta" id="db-header-meta"></span>
+      </div>
+      <div class="db-header-right">
+        <button class="fp-btn fp-btn-sm" id="db-btn-refresh" title="Yenile">&#8635; Yenile</button>
+      </div>
+    </header>
+    <div id="db-content">
+      <!-- Section content rendered by JS -->
+    </div>
+  </main>
+
+</div>
+
+<!-- WIZARD OVERLAY -->
+<div id="db-wizard-overlay" class="db-wizard-overlay" style="display:none">
+  <div class="db-wizard-card">
+    <div class="db-wizard-step" id="db-wizard-step">1/5</div>
+    <h2 id="db-wizard-title"></h2>
+    <p id="db-wizard-desc"></p>
+    <div class="db-wizard-actions">
+      <button class="fp-btn fp-btn-sm" id="db-wizard-skip">Atla</button>
+      <button class="fp-btn fp-btn-sm fp-btn-ada" id="db-wizard-next">Sonraki</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div id="db-toast-container"></div>
+
+<!-- Scripts: shared libs then dashboard controller -->
+<script src="../lib/pon-engine.js"></script>
+<script src="../lib/topology.js"></script>
+<script src="../lib/storage.js"></script>
+<script src="../lib/review-engine.js"></script>
+<script src="../lib/map-utils.js"></script>
+<script src="../lib/gdrive.js"></script>
+<script src="dashboard.js"></script>
+</body>
+</html>

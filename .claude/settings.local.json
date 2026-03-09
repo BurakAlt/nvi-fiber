@@ -27,11 +27,14 @@
       "Bash(del \"F:\\\\NVI FIBER\\\\fiber-chrome\\\\dashboard\\\\run-suite10.js\")",
       "Bash(node:*)",
       "Bash(del \"F:\\\\NVI FIBER\\\\fiber-chrome\\\\dashboard\\\\run-suite-financial.js\")",
-      "Allow all tools"
+      "Allow all tools",
+      "Bash(del \"F:\\\\NVI FIBER\\\\fiber-chrome\\\\dashboard\\\\test-financial-node.js\")",
+      "Bash",
+      "Write",
+      "Edit",
+      "Accept<edit"
     ],
-    "ask": [
-      "Allow all tools"
-    ]
+    "deny": []
   },
   "hooks": {
     "PreToolUse": [

@@ -1,0 +1,62 @@
+{
+  "manifest_version": 3,
+  "name": "FiberPlan Chrome",
+  "version": "1.0.0",
+  "description": "FTTH Fiber Ağ Planlama - NVI Adres Portalı Entegrasyonu",
+  "permissions": ["storage", "activeTab", "clipboardWrite", "identity", "unlimitedStorage"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "oauth2": {
+    "client_id": "536161332219-bgdlouau1u238imbo858jnr8cbg0p4mi.apps.googleusercontent.com",
+    "scopes": ["https://www.googleapis.com/auth/drive.file"]
+  },
+  "host_permissions": [
+    "https://adres.nvi.gov.tr/*",
+    "http://127.0.0.1:7777/*",
+    "https://server.arcgisonline.com/*",
+    "https://tile.openstreetmap.org/*",
+    "https://services.arcgisonline.com/*"
+  ],
+  "content_scripts": [{
+    "matches": ["https://adres.nvi.gov.tr/*"],
+    "js": [
+      "lib/leaflet.js",
+      "lib/debug.js",
+      "lib/ws-bridge.js",
+      "lib/pon-engine.js",
+      "lib/topology.js",
+      "lib/storage.js",
+      "lib/map-utils.js",
+      "lib/draw-polygon.js",
+      "lib/review-engine.js",
+      "content/scraper.js",
+      "content/overlay.js",
+      "content/panels.js",
+      "content/main.js"
+    ],
+    "css": ["styles/leaflet.css", "styles/overlay.css"],
+    "run_at": "document_idle"
+  }],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/favicon-16x16.png",
+      "32": "icons/favicon-32x32.png",
+      "192": "icons/android-chrome-192x192.png"
+    }
+  },
+  "icons": {
+    "16": "icons/favicon-16x16.png",
+    "32": "icons/favicon-32x32.png",
+    "192": "icons/android-chrome-192x192.png",
+    "512": "icons/android-chrome-512x512.png"
+  },
+  "web_accessible_resources": [{
+    "resources": ["styles/*", "styles/images/*", "icons/*"],
+    "matches": ["https://adres.nvi.gov.tr/*"]
+  }, {
+    "resources": ["dashboard/*"],
+    "matches": ["<all_urls>"]
+  }]
+}

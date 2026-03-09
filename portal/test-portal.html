@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portal Test Suite</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0f172a; color: #e2e8f0; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 13px; padding: 16px; }
+  h1 { color: #6366f1; font-size: 18px; margin-bottom: 12px; }
+  h2 { color: #3b82f6; font-size: 14px; margin: 16px 0 8px; border-bottom: 1px solid #1e293b; padding-bottom: 4px; }
+  .pass { color: #22c55e; }
+  .fail { color: #ef4444; }
+  .info { color: #94a3b8; }
+  .test-line { padding: 2px 0; }
+  #summary { margin-top: 16px; padding: 12px; border: 2px solid #1e293b; border-radius: 6px; font-size: 14px; }
+  #summary.all-pass { border-color: #22c55e; }
+  #summary.has-fail { border-color: #ef4444; }
+</style>
+</head>
+<body>
+<h1>Portal — Test Suite</h1>
+<div id="output"></div>
+<div id="summary"></div>
+
+<!-- Modules under test -->
+<script src="js/api-client.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/speedtest.js"></script>
+
+<script>
+(async function() {
+  var out = document.getElementById('output');
+  var passed = 0, failed = 0, total = 0;
+
+  function log(msg, cls) {
+    var d = document.createElement('div');
+    d.className = 'test-line ' + (cls || '');
+    d.innerHTML = msg;
+    out.appendChild(d);
+  }
+
+  function assert(condition, label) {
+    total++;
+    if (condition) { passed++; log('  PASS: ' + label, 'pass'); }
+    else { failed++; log('  FAIL: ' + label, 'fail'); }
+  }
+
+  function section(title) { log('<h2>' + title + '</h2>'); }
+
+  // ═══════════════════════════════════════════════
+  section('1. ApiClient Modul Varligi');
+  assert(typeof ApiClient !== 'undefined', 'ApiClient tanimli');
+  assert(typeof ApiClient.login === 'function', 'login() mevcut');
+  assert(typeof ApiClient.logout === 'function', 'logout() mevcut');
+  assert(typeof ApiClient.isAuthenticated === 'function', 'isAuthenticated() mevcut');
+  assert(typeof ApiClient.getProfile === 'function', 'getProfile() mevcut');
+  assert(typeof ApiClient.getInvoices === 'function', 'getInvoices() mevcut');
+  assert(typeof ApiClient.getPackages === 'function', 'getPackages() mevcut');
+  assert(typeof ApiClient.getTickets === 'function', 'getTickets() mevcut');
+  assert(typeof ApiClient.getWifiSettings === 'function', 'getWifiSettings() mevcut');
+
+  section('2. Kimlik Dogrulama — Basarisiz Giris');
+  var badLogin = await ApiClient.login('AB-9999', 'wrong');
+  assert(!badLogin.ok, 'Gecersiz abone → basarisiz');
+  assert(badLogin.error !== undefined, 'Hata mesaji mevcut');
+
+  section('3. Kimlik Dogrulama — Basarili Giris');
+  var goodLogin = await ApiClient.login('AB-1001', 'demo');
+  assert(goodLogin.ok, 'Gecerli abone → basarili');
+  assert(goodLogin.token !== undefined, 'JWT token dondu');
+  assert(goodLogin.subscriber.name === 'Ahmet Yilmaz', 'Abone adi dogru');
+  assert(ApiClient.isAuthenticated(), 'Oturum aktif');
+  assert(ApiClient.getCurrentSubscriberId() === 'AB-1001', 'Abone ID dogru');
+
+  section('4. Profil Verisi');
+  var profile = await ApiClient.getProfile();
+  assert(profile.ok, 'getProfile basarili');
+  assert(profile.data.name === 'Ahmet Yilmaz', 'Abone adi dogru');
+  assert(profile.data.package.name === 'Fiber 100', 'Paket adi dogru');
+  assert(profile.data.package.downloadMbps === 100, 'Download hizi dogru');
+  assert(profile.data.connection.status === 'online', 'Baglanti durumu online');
+  assert(profile.data.address !== undefined, 'Adres mevcut');
+
+  section('5. Kullanim Verisi');
+  var usage = await ApiClient.getUsage();
+  assert(usage.ok, 'getUsage basarili');
+  assert(typeof usage.data.downloadGB === 'number', 'downloadGB sayi');
+  assert(typeof usage.data.uploadGB === 'number', 'uploadGB sayi');
+
+  section('6. Baglanti Durumu');
+  var conn = await ApiClient.getConnectionStatus();
+  assert(conn.ok, 'getConnectionStatus basarili');
+  assert(conn.data.status === 'online', 'Durum = online');
+  assert(conn.data.ip !== undefined, 'IP adresi mevcut');
+  assert(typeof conn.data.uptime === 'number', 'Uptime sayi');
+
+  section('7. Faturalar');
+  var invoices = await ApiClient.getInvoices();
+  assert(invoices.ok, 'getInvoices basarili');
+  assert(Array.isArray(invoices.data), 'Faturalar dizi');
+  assert(invoices.data.length === 12, '12 aylik fatura (got: ' + invoices.data.length + ')');
+  assert(invoices.data[0].total > 0, 'Fatura tutari > 0');
+  assert(invoices.data[0].items.length >= 3, 'Fatura kalemleri mevcut (abonelik + KDV + OIV)');
+
+  section('8. Fatura Detay');
+  var invDetail = await ApiClient.getInvoiceDetail(invoices.data[0].id);
+  assert(invDetail.ok, 'getInvoiceDetail basarili');
+  assert(invDetail.data.id === invoices.data[0].id, 'Fatura ID dogru');
+  assert(invDetail.data.items.length >= 3, 'Kalemler mevcut');
+
+  section('9. Odeme Gecmisi');
+  var payments = await ApiClient.getPaymentHistory();
+  assert(payments.ok, 'getPaymentHistory basarili');
+  assert(Array.isArray(payments.data), 'Odemeler dizi');
+  assert(payments.data.length >= 1, 'En az 1 odeme');
+  assert(payments.data[0].method !== undefined, 'Odeme yontemi mevcut');
+
+  section('10. Paket Listesi');
+  var packages = await ApiClient.getPackages();
+  assert(packages.ok, 'getPackages basarili');
+  assert(Array.isArray(packages.data), 'Paketler dizi');
+  assert(packages.data.length >= 3, 'En az 3 paket');
+  assert(packages.data[0].downloadMbps > 0, 'Paket hizi > 0');
+
+  section('11. Mevcut Paket');
+  var currentPkg = await ApiClient.getCurrentPackage();
+  assert(currentPkg.ok, 'getCurrentPackage basarili');
+  assert(currentPkg.data.id === 'PKT-100', 'Mevcut paket = Fiber 100');
+
+  section('12. Paket Degisikligi Talebi');
+  var pkgChange = await ApiClient.requestPackageChange('PKT-200');
+  assert(pkgChange.ok, 'requestPackageChange basarili');
+  assert(pkgChange.data.requestId !== undefined, 'Talep ID mevcut');
+  assert(pkgChange.data.status === 'pending', 'Talep durumu = pending');
+
+  section('13. Hiz Testi Gecmisi');
+  var speedHist = await ApiClient.getSpeedTestHistory();
+  assert(speedHist.ok, 'getSpeedTestHistory basarili');
+  assert(Array.isArray(speedHist.data), 'Gecmis dizi');
+  assert(speedHist.data.length === 10, '10 test sonucu (got: ' + speedHist.data.length + ')');
+  assert(speedHist.data[0].download > 0, 'Download hizi > 0');
+
+  section('14. Destek Talepleri');
+  var tickets = await ApiClient.getTickets();
+  assert(tickets.ok, 'getTickets basarili');
+  assert(Array.isArray(tickets.data), 'Talepler dizi');
+  assert(tickets.data.length >= 1, 'En az 1 talep');
+  assert(tickets.data[0].messages.length >= 1, 'Talep mesajlari mevcut');
+
+  section('15. Yeni Destek Talebi');
+  var newTicket = await ApiClient.createTicket({
+    category: 'baglanti',
+    subject: 'Test sorunu',
+    description: 'Otomatik test',
+    priority: 'normal'
+  });
+  assert(newTicket.ok, 'createTicket basarili');
+  assert(newTicket.data.id !== undefined, 'Talep ID mevcut');
+  assert(newTicket.data.status === 'open', 'Talep durumu = open');
+
+  section('16. SSS');
+  var faq = await ApiClient.getFaq();
+  assert(faq.ok, 'getFaq basarili');
+  assert(Array.isArray(faq.data), 'SSS dizi');
+  assert(faq.data.length >= 5, 'En az 5 SSS');
+  assert(faq.data[0].q !== undefined, 'Soru alani mevcut');
+  assert(faq.data[0].a !== undefined, 'Cevap alani mevcut');
+
+  section('17. WiFi Ayarlari');
+  var wifi = await ApiClient.getWifiSettings();
+  assert(wifi.ok, 'getWifiSettings basarili');
+  assert(wifi.data.ssid !== undefined, 'SSID mevcut');
+  assert(wifi.data.password !== undefined, 'Sifre mevcut');
+  assert(wifi.data.devices.length >= 1, 'Bagli cihaz mevcut');
+
+  section('18. WiFi Degisiklikleri');
+  var ssidChange = await ApiClient.updateWifiSsid('TestNet');
+  assert(ssidChange.ok, 'updateWifiSsid basarili');
+  var passChange = await ApiClient.updateWifiPassword('YeniSifre123');
+  assert(passChange.ok, 'updateWifiPassword basarili');
+
+  section('19. Oturum Kapatma');
+  ApiClient.logout();
+  assert(!ApiClient.isAuthenticated(), 'Oturum kapandi');
+  assert(ApiClient.getCurrentSubscriberId() === null, 'Abone ID null');
+  var noAuth = await ApiClient.getProfile();
+  assert(!noAuth.ok, 'Oturum kapaliyken profil alinamaz');
+
+  section('20. PortalCharts Modul Varligi');
+  assert(typeof PortalCharts !== 'undefined', 'PortalCharts tanimli');
+  assert(typeof PortalCharts.sparkline === 'function', 'sparkline() mevcut');
+  assert(typeof PortalCharts.gauge === 'function', 'gauge() mevcut');
+  assert(typeof PortalCharts.barChart === 'function', 'barChart() mevcut');
+  assert(typeof PortalCharts.doughnut === 'function', 'doughnut() mevcut');
+  assert(typeof PortalCharts.speedometer === 'function', 'speedometer() mevcut');
+  assert(PortalCharts.COLORS !== undefined, 'COLORS tanimli');
+
+  section('21. SpeedTest Modul Varligi');
+  assert(typeof SpeedTest !== 'undefined', 'SpeedTest tanimli');
+  assert(typeof SpeedTest.run === 'function', 'run() mevcut');
+  assert(typeof SpeedTest.cancel === 'function', 'cancel() mevcut');
+  assert(typeof SpeedTest.isRunning === 'function', 'isRunning() mevcut');
+  assert(!SpeedTest.isRunning(), 'Baslangicta calismiyorr');
+
+  section('22. SpeedTest Calistirma');
+  var stResult = await SpeedTest.run({
+    planDownload: 100,
+    planUpload: 20,
+    onProgress: function() {}
+  });
+  assert(stResult.ok, 'SpeedTest.run basarili');
+  assert(typeof stResult.data.download === 'number', 'download sayi');
+  assert(typeof stResult.data.upload === 'number', 'upload sayi');
+  assert(typeof stResult.data.latency === 'number', 'latency sayi');
+  assert(typeof stResult.data.jitter === 'number', 'jitter sayi');
+  assert(stResult.data.download > 0, 'download > 0 (got: ' + stResult.data.download + ')');
+  assert(stResult.data.upload > 0, 'upload > 0 (got: ' + stResult.data.upload + ')');
+
+  section('23. Ikinci Abone Girisi');
+  var login2 = await ApiClient.login('AB-1002', 'demo');
+  assert(login2.ok, 'AB-1002 giris basarili');
+  var profile2 = await ApiClient.getProfile();
+  assert(profile2.ok, 'AB-1002 profil basarili');
+  assert(profile2.data.name === 'Fatma Demir', 'Abone adi = Fatma Demir');
+  assert(profile2.data.package.name === 'Fiber 50', 'Paket = Fiber 50');
+  assert(profile2.data.package.quota === 300, 'Kota = 300 GB');
+  ApiClient.logout();
+
+  // ═══════════════════════════════════════════════
+  var sum = document.getElementById('summary');
+  sum.className = failed === 0 ? 'all-pass' : 'has-fail';
+  sum.innerHTML = '<strong>' + (failed === 0 ? 'ALL PASS' : 'HAS FAILURES') + '</strong> — ' +
+    passed + '/' + total + ' passed, ' + failed + ' failed';
+})();
+</script>
+</body>
+</html>

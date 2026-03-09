@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  width: 400px;
+  background: #0f1729;
+  color: #e2e8f0;
+  font-family: 'Segoe UI', Tahoma, sans-serif;
+}
+.header {
+  background: #1a2744;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid #facc15;
+}
+.logo {
+  font-family: 'Courier New', monospace;
+  font-size: 18px;
+  font-weight: 700;
+  color: #facc15;
+  letter-spacing: 2px;
+}
+.version {
+  font-size: 12px;
+  color: #94a3b8;
+  font-family: 'Courier New', monospace;
+}
+.status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  background: #111d33;
+  font-size: 14px;
+  color: #94a3b8;
+}
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #f97316;
+  flex-shrink: 0;
+}
+.status.active .dot { background: #22c55e; }
+.status.active span { color: #86efac; font-weight: 600; }
+
+.section {
+  padding: 16px 20px;
+  border-top: 1px solid #1e3050;
+}
+.section-title {
+  font-size: 11px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+}
+.row-label { font-size: 14px; color: #94a3b8; }
+.row-value { font-size: 14px; color: #67e8f9; font-weight: 700; }
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  padding: 16px 20px;
+  border-top: 1px solid #1e3050;
+}
+.stat {
+  text-align: center;
+  background: #1a2744;
+  border-radius: 8px;
+  padding: 14px 8px;
+  border: 1px solid #253554;
+}
+.stat-num {
+  font-family: 'Courier New', monospace;
+  font-size: 24px;
+  font-weight: 700;
+  color: #facc15;
+  line-height: 1;
+}
+.stat-txt {
+  font-size: 11px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-top: 6px;
+}
+
+.actions {
+  padding: 16px 20px;
+  border-top: 1px solid #1e3050;
+}
+.btn {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  background: #1a2744;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  color: #e2e8f0;
+  text-align: center;
+  text-decoration: none;
+  font-size: 14px;
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+}
+.btn:hover { background: #facc15; color: #000; border-color: #facc15; }
+
+.footer {
+  padding: 12px 20px;
+  text-align: center;
+  font-size: 11px;
+  color: #475569;
+  border-top: 1px solid #1e3050;
+  line-height: 1.5;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">FIBERPLAN</div>
+  <div class="version">v1.0.0</div>
+</div>
+
+<div class="status" id="status">
+  <div class="dot"></div>
+  <span>NVI Portal bekleniyor...</span>
+</div>
+
+<div class="section">
+  <div class="section-title">GPON Standartlari</div>
+  <div class="row">
+    <span class="row-label">Standart</span>
+    <span class="row-value">ITU-T G.984 B+</span>
+  </div>
+  <div class="row">
+    <span class="row-label">Max Kayip</span>
+    <span class="row-value">28 dB</span>
+  </div>
+  <div class="row">
+    <span class="row-label">Fiber Kayip</span>
+    <span class="row-value">0.35 dB/km</span>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat">
+    <div class="stat-num" id="pop-ada">0</div>
+    <div class="stat-txt">Ada</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num" id="pop-bldg">0</div>
+    <div class="stat-txt">Bina</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num" id="pop-bb">0</div>
+    <div class="stat-txt">BB</div>
+  </div>
+</div>
+
+<div class="actions">
+  <button class="btn" id="open-dashboard" style="margin-bottom:8px;background:#8b5cf6;border-color:#8b5cf6;color:#fff">Dashboard Ac</button>
+  <a href="https://adres.nvi.gov.tr/VatandasIslemleri/AdresSorgu" target="_blank" class="btn">NVI Portal Ac</a>
+</div>
+
+<div class="footer">
+  FTTH Fiber Ag Planlama &middot; Ada Bazli Topoloji
+</div>
+
+<script src="popup.js"></script>
+</body>
+</html>

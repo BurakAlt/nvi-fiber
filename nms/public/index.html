@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NVI FIBER - Network Monitor</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --border: #334155;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --green: #22c55e;
+      --red: #ef4444;
+      --yellow: #eab308;
+      --blue: #3b82f6;
+      --purple: #8b5cf6;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ─── Header ─── */
+    .header {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .header .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .header-info {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    /* ─── Stats Bar ─── */
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      padding: 16px 24px;
+    }
+
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+    }
+
+    .stat-card .value {
+      font-size: 32px;
+      font-weight: 700;
+    }
+
+    .stat-card .label {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-top: 4px;
+    }
+
+    .stat-card.canli .value { color: var(--green); }
+    .stat-card.dusuk .value { color: var(--red); }
+    .stat-card.bilinmiyor .value { color: var(--yellow); }
+    .stat-card.toplam .value { color: var(--blue); }
+
+    /* ─── Filters ─── */
+    .filters {
+      padding: 0 24px 12px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .filter-btn {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+
+    .filter-btn:hover { border-color: var(--blue); }
+    .filter-btn.active { background: var(--blue); border-color: var(--blue); }
+
+    /* ─── Site Cards ─── */
+    .sites-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 12px;
+      padding: 0 24px 16px;
+    }
+
+    .site-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .site-card:hover { border-color: var(--blue); transform: translateY(-1px); }
+
+    .site-card .site-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .site-card .site-name { font-weight: 600; font-size: 15px; }
+
+    .site-card .site-badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+
+    .badge-ok { background: rgba(34,197,94,0.15); color: var(--green); }
+    .badge-warn { background: rgba(234,179,8,0.15); color: var(--yellow); }
+    .badge-crit { background: rgba(239,68,68,0.15); color: var(--red); }
+    .badge-unknown { background: rgba(148,163,184,0.15); color: var(--muted); }
+
+    .site-bar {
+      height: 6px;
+      border-radius: 3px;
+      background: var(--border);
+      overflow: hidden;
+      display: flex;
+      margin-bottom: 8px;
+    }
+
+    .site-bar .bar-green { background: var(--green); }
+    .site-bar .bar-red { background: var(--red); }
+    .site-bar .bar-gray { background: #475569; }
+
+    .site-stats {
+      display: flex;
+      gap: 12px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .site-stats span { display: flex; align-items: center; gap: 4px; }
+    .site-stats .dot-sm { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+
+    /* ─── Device Table ─── */
+    .table-container {
+      padding: 0 24px 24px;
+    }
+
+    .table-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .table-header h2 { font-size: 16px; font-weight: 600; }
+
+    .search-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      width: 250px;
+    }
+
+    .search-box:focus { outline: none; border-color: var(--blue); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th {
+      text-align: left;
+      padding: 8px 12px;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+      position: sticky;
+      top: 52px;
+      cursor: pointer;
+    }
+
+    th:hover { color: var(--text); }
+
+    td {
+      padding: 8px 12px;
+      border-bottom: 1px solid rgba(51,65,85,0.5);
+    }
+
+    tr:hover td { background: rgba(59,130,246,0.05); }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 6px;
+    }
+
+    .status-dot.up { background: var(--green); box-shadow: 0 0 4px var(--green); }
+    .status-dot.down { background: var(--red); box-shadow: 0 0 4px var(--red); }
+    .status-dot.unknown { background: var(--muted); }
+
+    .ping-val { font-family: 'Consolas', monospace; font-size: 12px; }
+    .ping-val.good { color: var(--green); }
+    .ping-val.warn { color: var(--yellow); }
+    .ping-val.bad { color: var(--red); }
+
+    .tip-badge {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-weight: 600;
+    }
+
+    .tip-AP { background: rgba(59,130,246,0.15); color: var(--blue); }
+    .tip-LINK { background: rgba(139,92,246,0.15); color: var(--purple); }
+    .tip-SW, .tip-POE-SW { background: rgba(234,179,8,0.15); color: var(--yellow); }
+    .tip-ROUTER { background: rgba(239,68,68,0.15); color: var(--red); }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 768px) {
+      .stats-bar { grid-template-columns: repeat(2, 1fr); }
+      .header { padding: 10px 12px; }
+      .stats-bar, .sites-grid, .table-container, .filters { padding-left: 12px; padding-right: 12px; }
+      .search-box { width: 150px; }
+    }
+
+    /* ─── Log Panel ─── */
+    .log-panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin: 0 24px 24px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .log-panel .log-header {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    .log-panel .log-entry {
+      padding: 4px 12px;
+      font-size: 12px;
+      font-family: 'Consolas', monospace;
+      border-bottom: 1px solid rgba(51,65,85,0.3);
+    }
+
+    .log-entry .time { color: var(--muted); }
+    .log-entry.alarm { color: var(--red); }
+    .log-entry.ok { color: var(--green); }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <h1><span class="dot" id="statusDot"></span> NVI FIBER Monitor</h1>
+    <div class="header-info" id="headerInfo">Baglaniyor...</div>
+  </div>
+
+  <!-- Stats Bar -->
+  <div class="stats-bar">
+    <div class="stat-card toplam">
+      <div class="value" id="statToplam">-</div>
+      <div class="label">Toplam Cihaz</div>
+    </div>
+    <div class="stat-card canli">
+      <div class="value" id="statCanli">-</div>
+      <div class="label">Canli</div>
+    </div>
+    <div class="stat-card dusuk">
+      <div class="value" id="statDusuk">-</div>
+      <div class="label">Dusuk</div>
+    </div>
+    <div class="stat-card bilinmiyor">
+      <div class="value" id="statBilinmiyor">-</div>
+      <div class="label">Bilinmiyor</div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filters">
+    <button class="filter-btn active" data-filter="all">Tumu</button>
+    <button class="filter-btn" data-filter="canli">Canli</button>
+    <button class="filter-btn" data-filter="dusuk">Dusuk</button>
+    <button class="filter-btn" data-filter="AP">AP</button>
+    <button class="filter-btn" data-filter="LINK">Link</button>
+    <button class="filter-btn" data-filter="SW">Switch</button>
+    <button class="filter-btn" data-filter="ROUTER">Router</button>
+  </div>
+
+  <!-- Sites Grid -->
+  <div class="sites-grid" id="sitesGrid"></div>
+
+  <!-- Device Table -->
+  <div class="table-container">
+    <div class="table-header">
+      <h2 id="tableTitle">Tum Cihazlar</h2>
+      <input type="text" class="search-box" id="searchBox" placeholder="Cihaz ara (ad, IP, site...)">
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th data-sort="alive">Durum</th>
+          <th data-sort="ad">Ad</th>
+          <th data-sort="ip">IP</th>
+          <th data-sort="tip">Tip</th>
+          <th data-sort="siteAd">Site</th>
+          <th data-sort="responseTime">Ping</th>
+          <th data-sort="uptimePercent">Uptime</th>
+          <th>Son Gorulme</th>
+        </tr>
+      </thead>
+      <tbody id="deviceTable"></tbody>
+    </table>
+  </div>
+
+  <!-- Log Panel -->
+  <div class="log-panel">
+    <div class="log-header">Canli Log</div>
+    <div id="logEntries"></div>
+  </div>
+
+<script>
+// ─── State ──────────────────────────────────────────────
+let allDevices = [];
+let currentFilter = 'all';
+let currentSite = null;
+let searchText = '';
+let sortField = 'ad';
+let sortDir = 1;
+
+// ─── API ────────────────────────────────────────────────
+const API = window.location.origin;
+
+async function fetchDevices() {
+  try {
+    const res = await fetch(`${API}/api/devices`);
+    const data = await res.json();
+    allDevices = data.devices;
+    renderAll();
+  } catch (e) {
+    addLog('API baglanti hatasi: ' + e.message, 'alarm');
+  }
+}
+
+async function fetchStats() {
+  try {
+    const res = await fetch(`${API}/api/stats`);
+    const data = await res.json();
+    updateStats(data);
+  } catch (e) { /* ignore */ }
+}
+
+// ─── WebSocket ──────────────────────────────────────────
+let ws;
+let wsReconnectTimer;
+
+function connectWS() {
+  const wsUrl = `ws://${window.location.host}`;
+  ws = new WebSocket(wsUrl);
+
+  ws.onopen = () => {
+    document.getElementById('statusDot').style.background = 'var(--green)';
+    document.getElementById('headerInfo').textContent = 'Bagli';
+    addLog('WebSocket baglantisi kuruldu', 'ok');
+  };
+
+  ws.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+
+    if (msg.tip === 'ilk-durum') {
+      updateStats(msg.stats);
+    }
+
+    if (msg.tip === 'dongu-tamamlandi') {
+      updateStats(msg.stats);
+      const s = msg.sonuc;
+      addLog(`Tarama: ${s.canli} canli, ${s.dusuk} dusuk (${s.sure}s)`, s.dusuk > 0 ? 'alarm' : 'ok');
+      fetchDevices(); // Guncel listeyi al
+    }
+
+    if (msg.tip === 'alarm') {
+      const names = msg.dusukCihazlar.map(d => d.ad).join(', ');
+      addLog(`ALARM: ${msg.dusukCihazlar.length} cihaz dusuk - ${names}`, 'alarm');
+    }
+  };
+
+  ws.onclose = () => {
+    document.getElementById('statusDot').style.background = 'var(--red)';
+    document.getElementById('headerInfo').textContent = 'Baglanti kesildi';
+    addLog('WebSocket koptu, 5s sonra tekrar denenecek...', 'alarm');
+    wsReconnectTimer = setTimeout(connectWS, 5000);
+  };
+
+  ws.onerror = () => { ws.close(); };
+}
+
+// ─── Render ─────────────────────────────────────────────
+function updateStats(stats) {
+  document.getElementById('statToplam').textContent = stats.toplam;
+  document.getElementById('statCanli').textContent = stats.canli;
+  document.getElementById('statDusuk').textContent = stats.dusuk;
+  document.getElementById('statBilinmiyor').textContent = stats.bilinmiyor + (stats.ipYok || 0);
+
+  const info = stats.monitor
+    ? `Dongu: #${stats.monitor.cycleCount} | ${stats.monitor.interval}s aralik`
+    : '';
+  document.getElementById('headerInfo').textContent = `Bagli | ${info}`;
+}
+
+function renderAll() {
+  renderSites();
+  renderTable();
+}
+
+function renderSites() {
+  // Site bazli gruplama
+  const siteMap = {};
+  for (const d of allDevices) {
+    const key = d.site || 'diger';
+    if (!siteMap[key]) siteMap[key] = { ad: d.siteAd || key, devices: [] };
+    siteMap[key].devices.push(d);
+  }
+
+  const grid = document.getElementById('sitesGrid');
+  grid.innerHTML = '';
+
+  for (const [key, site] of Object.entries(siteMap).sort((a, b) => b[1].devices.length - a[1].devices.length)) {
+    const total = site.devices.length;
+    const up = site.devices.filter(d => d.alive === true).length;
+    const down = site.devices.filter(d => d.alive === false).length;
+    const unknown = total - up - down;
+
+    let badgeClass = 'badge-unknown';
+    let badgeText = 'Bilinmiyor';
+    if (down > 0) { badgeClass = 'badge-crit'; badgeText = `${down} Dusuk`; }
+    else if (up > 0 && unknown === 0) { badgeClass = 'badge-ok'; badgeText = 'Tamam'; }
+    else if (up > 0) { badgeClass = 'badge-warn'; badgeText = 'Kismi'; }
+
+    const upPct = total > 0 ? (up / total * 100) : 0;
+    const downPct = total > 0 ? (down / total * 100) : 0;
+    const unkPct = 100 - upPct - downPct;
+
+    const card = document.createElement('div');
+    card.className = 'site-card' + (currentSite === key ? ' active' : '');
+    card.style.borderColor = currentSite === key ? 'var(--blue)' : '';
+    card.innerHTML = `
+      <div class="site-header">
+        <span class="site-name">${site.ad}</span>
+        <span class="site-badge ${badgeClass}">${badgeText}</span>
+      </div>
+      <div class="site-bar">
+        <div class="bar-green" style="width:${upPct}%"></div>
+        <div class="bar-red" style="width:${downPct}%"></div>
+        <div class="bar-gray" style="width:${unkPct}%"></div>
+      </div>
+      <div class="site-stats">
+        <span><span class="dot-sm" style="background:var(--green)"></span> ${up}</span>
+        <span><span class="dot-sm" style="background:var(--red)"></span> ${down}</span>
+        <span><span class="dot-sm" style="background:#475569"></span> ${unknown}</span>
+        <span style="margin-left:auto">${total} cihaz</span>
+      </div>
+    `;
+    card.onclick = () => {
+      currentSite = currentSite === key ? null : key;
+      document.getElementById('tableTitle').textContent = currentSite ? site.ad + ' Cihazlari' : 'Tum Cihazlar';
+      renderAll();
+    };
+    grid.appendChild(card);
+  }
+}
+
+function renderTable() {
+  let filtered = [...allDevices];
+
+  // Site filtresi
+  if (currentSite) {
+    filtered = filtered.filter(d => d.site === currentSite);
+  }
+
+  // Durum/tip filtresi
+  if (currentFilter === 'canli') filtered = filtered.filter(d => d.alive === true);
+  else if (currentFilter === 'dusuk') filtered = filtered.filter(d => d.alive === false);
+  else if (currentFilter === 'AP') filtered = filtered.filter(d => d.tip === 'AP');
+  else if (currentFilter === 'LINK') filtered = filtered.filter(d => d.tip === 'LINK');
+  else if (currentFilter === 'SW') filtered = filtered.filter(d => d.tip === 'SW' || d.tip === 'POE-SW');
+  else if (currentFilter === 'ROUTER') filtered = filtered.filter(d => d.tip === 'ROUTER');
+
+  // Arama
+  if (searchText) {
+    const q = searchText.toLowerCase();
+    filtered = filtered.filter(d =>
+      (d.ad || '').toLowerCase().includes(q) ||
+      (d.ip || '').includes(q) ||
+      (d.siteAd || '').toLowerCase().includes(q) ||
+      (d.marka || '').toLowerCase().includes(q)
+    );
+  }
+
+  // Siralama
+  filtered.sort((a, b) => {
+    let va = a[sortField], vb = b[sortField];
+    if (va === null || va === undefined) va = sortField === 'responseTime' ? 9999 : '';
+    if (vb === null || vb === undefined) vb = sortField === 'responseTime' ? 9999 : '';
+    if (typeof va === 'string') return va.localeCompare(vb) * sortDir;
+    return (va - vb) * sortDir;
+  });
+
+  const tbody = document.getElementById('deviceTable');
+  tbody.innerHTML = '';
+
+  for (const d of filtered) {
+    const statusClass = d.alive === true ? 'up' : d.alive === false ? 'down' : 'unknown';
+    const statusText = d.alive === true ? 'Canli' : d.alive === false ? 'Dusuk' : '-';
+
+    let pingClass = '';
+    let pingText = '-';
+    if (d.responseTime !== null && d.responseTime !== undefined) {
+      pingText = d.responseTime + ' ms';
+      if (d.responseTime < 10) pingClass = 'good';
+      else if (d.responseTime < 50) pingClass = 'warn';
+      else pingClass = 'bad';
+    }
+
+    const lastSeen = d.lastSeen ? new Date(d.lastSeen).toLocaleTimeString('tr-TR') : '-';
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="status-dot ${statusClass}"></span>${statusText}</td>
+      <td><strong>${d.ad}</strong></td>
+      <td style="font-family:Consolas,monospace;font-size:12px">${d.ip || '-'}</td>
+      <td><span class="tip-badge tip-${d.tip}">${d.tip}</span></td>
+      <td>${d.siteAd || '-'}</td>
+      <td><span class="ping-val ${pingClass}">${pingText}</span></td>
+      <td>${d.uptimePercent ? d.uptimePercent + '%' : '-'}</td>
+      <td style="font-size:12px;color:var(--muted)">${lastSeen}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+function addLog(text, type = '') {
+  const container = document.getElementById('logEntries');
+  const entry = document.createElement('div');
+  entry.className = 'log-entry ' + type;
+  const time = new Date().toLocaleTimeString('tr-TR');
+  entry.innerHTML = `<span class="time">[${time}]</span> ${text}`;
+  container.insertBefore(entry, container.firstChild);
+
+  // Max 50 log satiri tut
+  while (container.children.length > 50) {
+    container.removeChild(container.lastChild);
+  }
+}
+
+// ─── Event Listeners ────────────────────────────────────
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentFilter = btn.dataset.filter;
+    renderTable();
+  });
+});
+
+document.getElementById('searchBox').addEventListener('input', (e) => {
+  searchText = e.target.value;
+  renderTable();
+});
+
+document.querySelectorAll('th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    const field = th.dataset.sort;
+    if (sortField === field) sortDir *= -1;
+    else { sortField = field; sortDir = 1; }
+    renderTable();
+  });
+});
+
+// ─── Init ───────────────────────────────────────────────
+fetchDevices();
+fetchStats();
+connectWS();
+
+// Fallback: WS calismasa bile periyodik guncelle
+setInterval(fetchDevices, 30000);
+setInterval(fetchStats, 15000);
+</script>
+
+</body>
+</html>

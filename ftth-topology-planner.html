@@ -1,0 +1,1486 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FTTH Ada-Bazli Topoloji Planlama</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0e1a;--surface:#111827;--surface2:#1a2235;--surface3:#1f2937;
+  --border:#1e293b;--border2:#334155;
+  --text:#e2e8f0;--text-dim:#94a3b8;--text-bright:#f8fafc;--text-muted:#64748b;
+  --olt-color:#8b5cf6;--fdh-color:#3b82f6;--mdu-color:#22c55e;
+  --mdu-mid:#f97316;--sfu-color:#eab308;--active-color:#ef4444;
+  --backbone-color:#3b5998;--dist-color:#f97316;--drop-color:#ef4444;--ring-color:#6366f1;
+  --accent:#facc15;--success:#22c55e;--danger:#ef4444;--info:#06b6d4;
+}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;display:flex;flex-direction:column}
+
+/* TOP BAR */
+.topbar{height:48px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:12px;flex-shrink:0;z-index:100}
+.topbar .logo{font-family:'JetBrains Mono',monospace;font-size:.85rem;font-weight:700;color:var(--accent);letter-spacing:1px}
+.topbar .sep{width:1px;height:24px;background:var(--border)}
+.tab-group{display:flex;gap:2px}
+.tab-btn{padding:6px 14px;border:none;background:transparent;color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:.72rem;cursor:pointer;border-radius:6px;transition:.2s;letter-spacing:.5px}
+.tab-btn:hover{background:var(--surface2);color:var(--text)}
+.tab-btn.active{background:var(--accent);color:#000;font-weight:600}
+.topbar-right{margin-left:auto;display:flex;gap:8px;align-items:center}
+.top-stat{font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--text-dim);padding:4px 10px;background:var(--surface2);border-radius:6px;border:1px solid var(--border)}
+.top-stat b{color:var(--accent)}
+.btn-sm{padding:5px 12px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:.7rem;cursor:pointer;border-radius:6px;transition:.15s}
+.btn-sm:hover{background:var(--accent);color:#000;border-color:var(--accent)}
+.btn-ada{background:var(--success);color:#000;border-color:var(--success);font-weight:700}
+.btn-ada:hover{background:#16a34a;border-color:#16a34a}
+.btn-danger{border-color:var(--danger);color:var(--danger)}
+.btn-danger:hover{background:var(--danger);color:#fff}
+
+/* MAIN LAYOUT */
+.main-wrap{flex:1;display:flex;overflow:hidden}
+.center-area{flex:1;display:flex;flex-direction:column;overflow:hidden}
+
+/* SCHEMATIC VIEW */
+.schematic-view{flex:1;position:relative;overflow:auto;background:var(--bg)}
+.schematic-view svg{width:100%;height:100%;min-width:1800px;min-height:900px}
+
+/* MAP VIEW */
+.map-view{flex:1;display:none;position:relative}
+#leaflet-map{width:100%;height:100%}
+
+/* RIGHT PANEL */
+.right-panel{width:360px;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+.panel-header{padding:12px 16px;border-bottom:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:.75rem;font-weight:600;color:var(--info);letter-spacing:1px;text-transform:uppercase;display:flex;align-items:center;gap:8px}
+.panel-header::before{content:'';width:8px;height:2px;background:var(--info)}
+
+/* ADA SELECTOR */
+.ada-selector{padding:8px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:6px}
+.ada-tabs{display:flex;gap:4px;flex-wrap:wrap}
+.ada-tab{padding:4px 10px;border:1px solid var(--border);background:var(--surface2);color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:.68rem;cursor:pointer;border-radius:6px;transition:.15s}
+.ada-tab:hover{border-color:var(--accent);color:var(--text)}
+.ada-tab.active{background:var(--accent);color:#000;border-color:var(--accent);font-weight:600}
+.ada-tab.all{background:rgba(6,182,212,.12);color:#67e8f9;border-color:rgba(6,182,212,.3)}
+.ada-tab.all.active{background:var(--info);color:#000}
+.ada-status{font-size:.62rem;color:var(--text-muted);font-family:'JetBrains Mono',monospace;padding:0 4px}
+
+/* BUILDING LIST */
+.building-list{flex:1;overflow-y:auto;padding:8px}
+.building-list::-webkit-scrollbar{width:4px}
+.building-list::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+.bldg-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:6px;cursor:pointer;transition:.15s}
+.bldg-card:hover{border-color:var(--accent);transform:translateX(-2px)}
+.bldg-card.selected{border-color:var(--accent);background:rgba(250,204,21,.05)}
+.bldg-card.is-olt{border-left:3px solid var(--olt-color)}
+.bldg-card .bldg-top{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.bldg-card .bldg-icon{width:20px;height:20px;display:flex;align-items:center;justify-content:center}
+.bldg-card .bldg-name{font-family:'JetBrains Mono',monospace;font-size:.78rem;font-weight:600;color:var(--text-bright);flex:1}
+.bldg-card .bldg-bb{font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--accent);font-weight:700}
+.bldg-card .bldg-detail{font-size:.7rem;color:var(--text-dim);line-height:1.4}
+.bldg-card .bldg-badges{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
+.badge{padding:2px 8px;border-radius:10px;font-family:'JetBrains Mono',monospace;font-size:.62rem;font-weight:600}
+.badge-olt{background:rgba(139,92,246,.2);color:#a78bfa;border:1px solid rgba(139,92,246,.3)}
+.badge-splitter{background:rgba(6,182,212,.12);color:#67e8f9;border:1px solid rgba(6,182,212,.25)}
+.badge-anten{background:rgba(239,68,68,.15);color:#fca5a5;border:1px solid rgba(239,68,68,.25)}
+.badge-mdu{background:rgba(34,197,94,.12);color:#86efac;border:1px solid rgba(34,197,94,.25)}
+
+/* BOTTOM PANEL */
+.bottom-panel{height:240px;background:var(--surface);border-top:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;overflow:hidden}
+.bottom-tabs{display:flex;border-bottom:1px solid var(--border);padding:0 12px;flex-shrink:0}
+.btab{padding:8px 16px;border:none;background:transparent;color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:.68rem;cursor:pointer;border-bottom:2px solid transparent;transition:.15s;letter-spacing:.5px}
+.btab:hover{color:var(--text)}
+.btab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.bottom-content{flex:1;overflow:auto;padding:12px 16px;display:none}
+.bottom-content.active{display:block}
+.bottom-content::-webkit-scrollbar{height:4px;width:4px}
+.bottom-content::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+
+table.data-table{width:100%;border-collapse:collapse;font-size:.75rem}
+table.data-table th{font-family:'JetBrains Mono',monospace;font-size:.65rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface)}
+table.data-table td{padding:6px 8px;border-bottom:1px solid rgba(30,41,59,.4);vertical-align:middle}
+table.data-table tr:hover{background:rgba(250,204,21,.02)}
+.highlight{background:rgba(250,204,21,.06)!important}
+
+/* LEGEND */
+.legend-bar{display:flex;gap:16px;padding:8px 16px;background:var(--surface);border-top:1px solid var(--border);flex-shrink:0;flex-wrap:wrap;align-items:center}
+.leg{display:flex;align-items:center;gap:5px;font-family:'JetBrains Mono',monospace;font-size:.65rem;color:var(--text-dim)}
+.leg-icon{width:14px;height:14px;display:flex;align-items:center;justify-content:center}
+.leg-line{width:22px;height:3px;border-radius:2px}
+.leg-dash{width:22px;height:0;border-top:2px dashed}
+
+/* TOOLTIP */
+.svg-tooltip{position:absolute;background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:10px 14px;pointer-events:none;z-index:200;min-width:220px;box-shadow:0 8px 32px rgba(0,0,0,.5);font-size:.78rem;display:none}
+.svg-tooltip .tt-title{font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--text-bright);font-size:.85rem;margin-bottom:4px}
+.svg-tooltip .tt-row{display:flex;justify-content:space-between;gap:16px;padding:2px 0;color:var(--text-dim);font-size:.74rem}
+.svg-tooltip .tt-row b{color:var(--text)}
+
+/* CONTEXT MENU */
+.ctx-menu{position:absolute;background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:4px;z-index:300;min-width:180px;box-shadow:0 8px 32px rgba(0,0,0,.6);display:none}
+.ctx-item{padding:7px 12px;border-radius:5px;cursor:pointer;font-size:.78rem;color:var(--text);transition:.1s;display:flex;align-items:center;gap:8px}
+.ctx-item:hover{background:var(--surface2);color:var(--accent)}
+.ctx-item .ctx-key{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:.62rem;color:var(--text-muted)}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:400;display:none;align-items:center;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:24px;min-width:400px;max-width:500px;box-shadow:0 16px 64px rgba(0,0,0,.5)}
+.modal h3{font-family:'JetBrains Mono',monospace;font-size:.9rem;color:var(--accent);margin-bottom:16px}
+.modal label{display:block;font-size:.75rem;color:var(--text-dim);margin-bottom:4px;font-family:'JetBrains Mono',monospace}
+.modal input,.modal select{width:100%;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.8rem;margin-bottom:12px;outline:none}
+.modal input:focus,.modal select:focus{border-color:var(--accent)}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:8px}
+
+/* SVG STYLES */
+.node-group{cursor:pointer}
+.node-group:hover .node-shape{filter:brightness(1.2)}
+.node-label{font-family:'JetBrains Mono',monospace;fill:var(--text-dim);font-size:10px;text-anchor:middle}
+.node-bb{font-family:'JetBrains Mono',monospace;fill:var(--text-bright);font-size:15px;font-weight:700;text-anchor:middle}
+.node-name{font-family:'Inter',sans-serif;fill:var(--text);font-size:12px;text-anchor:middle;font-weight:600}
+.cable-label{font-family:'JetBrains Mono',monospace;font-size:9px;fill:var(--text-dim)}
+.cable-line{cursor:pointer}
+.cable-line:hover{filter:brightness(1.4)}
+.pentagon-olt{fill:rgba(139,92,246,.25);stroke:#8b5cf6;stroke-width:2.5}
+.pentagon-fdh{fill:rgba(59,130,246,.2);stroke:#3b82f6;stroke-width:1.5}
+.pentagon-mdu-lg{fill:rgba(34,197,94,.2);stroke:#22c55e;stroke-width:1.5}
+.pentagon-mdu-md{fill:rgba(249,115,22,.2);stroke:#f97316;stroke-width:1.5}
+.pentagon-sfu{fill:rgba(234,179,8,.2);stroke:#eab308;stroke-width:1.5}
+.olt-glow{filter:drop-shadow(0 0 10px rgba(139,92,246,.6))}
+@keyframes pulse-ring{0%,100%{opacity:.3;r:18}50%{opacity:.6;r:22}}
+@keyframes dash-flow{to{stroke-dashoffset:-20}}
+.ring-anim{animation:dash-flow 2s linear infinite}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="logo">FTTH PLANNER</div>
+  <div class="sep"></div>
+  <div class="tab-group">
+    <button class="tab-btn active" onclick="switchView('schematic')">TOPOLOGY</button>
+    <button class="tab-btn" onclick="switchView('map')">SATELLITE MAP</button>
+  </div>
+  <div class="sep"></div>
+  <button class="btn-sm btn-ada" id="btn-ada-bitir" onclick="adaBitir()">ADA BITIR</button>
+  <button class="btn-sm" onclick="yeniAda()">+ YENI ADA</button>
+  <div class="topbar-right">
+    <div class="top-stat" id="stat-ada">Ada: <b>0</b></div>
+    <div class="top-stat" id="stat-buildings">Bina: <b>0</b></div>
+    <div class="top-stat" id="stat-bb">BB: <b>0</b></div>
+    <div class="top-stat" id="stat-cost">Maliyet: <b>0</b></div>
+    <button class="btn-sm" onclick="addBuildingPrompt()">+ Bina Ekle</button>
+    <button class="btn-sm" onclick="exportJSON()">JSON</button>
+    <button class="btn-sm" onclick="exportCSV()">CSV</button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main-wrap">
+  <div class="center-area">
+    <div class="schematic-view" id="schematic-view">
+      <svg id="topo-svg" viewBox="0 0 1800 900"></svg>
+    </div>
+    <div class="map-view" id="map-view">
+      <div id="leaflet-map"></div>
+    </div>
+    <div class="bottom-panel">
+      <div class="bottom-tabs">
+        <button class="btab active" onclick="switchBTab(this,'bt-summary')">OZET</button>
+        <button class="btab" onclick="switchBTab(this,'bt-loss')">KAYIP BUTCESI</button>
+        <button class="btab" onclick="switchBTab(this,'bt-cable')">KABLO PLANI</button>
+        <button class="btab" onclick="switchBTab(this,'bt-inventory')">ENVANTER</button>
+        <button class="btab" onclick="switchBTab(this,'bt-cost')">MALIYET</button>
+      </div>
+      <div class="bottom-content active" id="bt-summary"></div>
+      <div class="bottom-content" id="bt-loss"></div>
+      <div class="bottom-content" id="bt-cable"></div>
+      <div class="bottom-content" id="bt-inventory"></div>
+      <div class="bottom-content" id="bt-cost"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="right-panel">
+    <div class="panel-header">Ada & Bina Yonetimi</div>
+    <div class="ada-selector" id="ada-selector"></div>
+    <div style="padding:6px 8px;border-bottom:1px solid var(--border)">
+      <input type="text" id="bldg-search" placeholder="Ara... (isim, mahalle)" style="width:100%;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.78rem;outline:none" oninput="filterBuildings(this.value)">
+    </div>
+    <div class="building-list" id="building-list"></div>
+  </div>
+</div>
+
+<!-- LEGEND -->
+<div class="legend-bar">
+  <div class="leg"><div class="leg-icon"><svg width="14" height="14"><polygon points="7,1 13,5 11,12 3,12 1,5" fill="rgba(139,92,246,.4)" stroke="#8b5cf6" stroke-width="1.5"/></svg></div>OLT/POP</div>
+  <div class="leg"><div class="leg-icon"><svg width="14" height="14"><polygon points="7,1 13,5 11,12 3,12 1,5" fill="rgba(59,130,246,.3)" stroke="#3b82f6" stroke-width="1.5"/></svg></div>Splitter/FDH</div>
+  <div class="leg"><div class="leg-icon"><svg width="14" height="14"><polygon points="7,1 13,5 11,12 3,12 1,5" fill="rgba(34,197,94,.3)" stroke="#22c55e" stroke-width="1.5"/></svg></div>MDU (20+ BB)</div>
+  <div class="leg"><div class="leg-icon"><svg width="14" height="14"><polygon points="7,1 13,5 11,12 3,12 1,5" fill="rgba(249,115,22,.3)" stroke="#f97316" stroke-width="1.5"/></svg></div>Bina (8-20 BB)</div>
+  <div class="leg"><div class="leg-icon"><svg width="14" height="14"><polygon points="7,1 13,5 11,12 3,12 1,5" fill="rgba(234,179,8,.3)" stroke="#eab308" stroke-width="1.5"/></svg></div>SFU (1-8 BB)</div>
+  <div class="leg"><div class="leg-line" style="background:#3b5998"></div>Backbone (48/96)</div>
+  <div class="leg"><div class="leg-line" style="background:#f97316"></div>Dagitim (12/24)</div>
+  <div class="leg"><div class="leg-dash" style="border-color:#ef4444"></div>Drop (2/4)</div>
+  <div class="leg"><div class="leg-dash" style="border-color:#6366f1"></div>Ring</div>
+</div>
+
+<!-- TOOLTIP & CONTEXT MENU -->
+<div class="svg-tooltip" id="tooltip"></div>
+<div class="ctx-menu" id="ctx-menu"></div>
+
+<!-- BUILDING ADD MODAL -->
+<div class="modal-overlay" id="modal-add">
+  <div class="modal">
+    <h3>Bina Ekle</h3>
+    <label>Bina Adi</label>
+    <input type="text" id="m-name" placeholder="Yildirim Apt.">
+    <label>Adres</label>
+    <input type="text" id="m-addr" placeholder="Bugday Pazari Mah. Ataturk Cd. No:12">
+    <label>Bagimsiz Bolum (BB)</label>
+    <input type="number" id="m-bb" value="12" min="1" max="64">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div><label>Kat Sayisi</label><input type="number" id="m-floor" value="4" min="1" max="50"></div>
+      <div><label>Elektrik</label><select id="m-electric"><option value="1">Var</option><option value="0">Yok</option></select></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div><label>Enlem (Lat)</label><input type="text" id="m-lat" placeholder="40.60120"></div>
+      <div><label>Boylam (Lng)</label><input type="text" id="m-lng" placeholder="33.61400"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-sm btn-danger" onclick="closeModal('modal-add')">Iptal</button>
+      <button class="btn-sm btn-ada" onclick="addBuildingSubmit()">Ekle</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ================================================================
+//  1. DATA MODEL - Ada-Based Architecture
+// ================================================================
+
+const PROJECT = {
+  meta: {
+    name: "Cankiri Merkez FTTH",
+    city: "Cankiri",
+    district: "Merkez",
+    date: new Date().toISOString().split('T')[0],
+    standard: "ITU-T G.984 GPON Class B+"
+  },
+  adas: [],
+  activeAdaId: null,
+  viewMode: 'all', // 'all' or specific ada id
+  nextAdaId: 1,
+  nextBuildingId: 1,
+  catalog: {
+    olt_port:     { name:"OLT GPON Port",     unit:"adet", price:8500 },
+    sfp_module:   { name:"SFP-B+ Modul",      unit:"adet", price:3200 },
+    splitter_1x8: { name:"Splitter 1:8 PLC",  unit:"adet", price:450 },
+    splitter_1x16:{ name:"Splitter 1:16 PLC", unit:"adet", price:750 },
+    splitter_1x32:{ name:"Splitter 1:32 PLC", unit:"adet", price:1100 },
+    fdh_cabinet:  { name:"FDH Kabini 96 port", unit:"adet", price:4500 },
+    ont:          { name:"ONT Cihaz",          unit:"adet", price:350 },
+    fiber_96:     { name:"96 Kor Fiber Kablo", unit:"m",    price:28 },
+    fiber_48:     { name:"48 Kor Fiber Kablo", unit:"m",    price:18 },
+    fiber_24:     { name:"24 Kor Fiber Kablo", unit:"m",    price:12 },
+    fiber_12:     { name:"12 Kor Fiber Kablo", unit:"m",    price:8 },
+    fiber_4:      { name:"4 Kor Drop Kablo",   unit:"m",    price:3.5 },
+    fiber_2:      { name:"2 Kor Drop Kablo",   unit:"m",    price:2.5 },
+    connector:    { name:"SC/APC Konnektor",   unit:"adet", price:15 },
+    splice_tray:  { name:"Ekleme Kaseti",      unit:"adet", price:85 },
+    anten:        { name:"Sektor Anten",       unit:"adet", price:12000 },
+    anten_pole:   { name:"Anten Diregi",       unit:"adet", price:8500 }
+  },
+  constants: {
+    maxLossBudget: 28,
+    fiberLoss1310: 0.35,
+    fiberLoss1550: 0.25,
+    connectorLoss: 0.5,
+    spliceLoss: 0.1,
+    splitterLoss: { 2:3.5, 4:7.0, 8:10.5, 16:14.0, 32:17.5, 64:21.0 },
+    penetrationTarget: 0.70,
+    avgCableDistM: 120
+  }
+};
+
+function createAda(name) {
+  const ada = {
+    id: PROJECT.nextAdaId++,
+    name: name || `Ada ${PROJECT.nextAdaId - 1}`,
+    status: 'planning', // planning | completed
+    buildings: [],
+    topology: { oltBuildingId: null, antenBuildingId: null, arms: [], ringCable: null },
+    calculations: { splitters: [], cables: [], lossBudget: [], inventory: [], costs: { items: [], total: 0 } }
+  };
+  PROJECT.adas.push(ada);
+  PROJECT.activeAdaId = ada.id;
+  return ada;
+}
+
+function getActiveAda() {
+  return PROJECT.adas.find(a => a.id === PROJECT.activeAdaId);
+}
+
+function getAllBuildings() {
+  return PROJECT.adas.flatMap(a => a.buildings.map(b => ({ ...b, adaId: a.id, adaName: a.name })));
+}
+
+// Save/Load
+function saveData() {
+  localStorage.setItem('ftth-ada-planner', JSON.stringify({
+    meta: PROJECT.meta, adas: PROJECT.adas,
+    activeAdaId: PROJECT.activeAdaId,
+    nextAdaId: PROJECT.nextAdaId,
+    nextBuildingId: PROJECT.nextBuildingId
+  }));
+}
+
+function loadData() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('ftth-ada-planner'));
+    if (saved && saved.adas) {
+      PROJECT.meta = saved.meta || PROJECT.meta;
+      PROJECT.adas = saved.adas;
+      PROJECT.activeAdaId = saved.activeAdaId;
+      PROJECT.nextAdaId = saved.nextAdaId || 1;
+      PROJECT.nextBuildingId = saved.nextBuildingId || 1;
+    }
+  } catch(e) {}
+}
+
+// ================================================================
+//  2. ENGINE - Calculations (per-ada)
+// ================================================================
+
+function distBetween(b1, b2) {
+  const R = 6371000;
+  const dLat = (b2.lat - b1.lat) * Math.PI / 180;
+  const dLng = (b2.lng - b1.lng) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(b1.lat*Math.PI/180) * Math.cos(b2.lat*Math.PI/180) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function findOptimalOLT(buildings) {
+  if (buildings.length === 0) return null;
+  if (buildings.length === 1) return buildings[0].id;
+  let bestId = buildings[0].id, bestCost = Infinity;
+  for (const candidate of buildings) {
+    if (!candidate.hasElectric) continue;
+    let totalCost = 0;
+    for (const b of buildings) {
+      if (b.id === candidate.id) continue;
+      totalCost += distBetween(candidate, b) * b.bb;
+    }
+    totalCost -= candidate.floor * 50;
+    if (totalCost < bestCost) { bestCost = totalCost; bestId = candidate.id; }
+  }
+  return bestId;
+}
+
+function calcSplitter(bb) {
+  if (bb <= 8)  return [{ ratio: 8,  ports: 8,  loss: 10.5 }];
+  if (bb <= 16) return [{ ratio: 16, ports: 16, loss: 14.0 }];
+  if (bb <= 24) return [{ ratio: 16, ports: 16, loss: 14.0 }, { ratio: 8, ports: 8, loss: 10.5 }];
+  if (bb <= 32) return [{ ratio: 32, ports: 32, loss: 17.5 }];
+  return [{ ratio: 32, ports: 32, loss: 17.5 }, { ratio: 16, ports: 16, loss: 14.0 }];
+}
+
+function getBuildingType(b, ada) {
+  if (ada && b.id === ada.topology.oltBuildingId) return 'olt';
+  if (b.bb >= 20) return 'mdu-lg';
+  if (b.bb >= 8)  return 'mdu-md';
+  return 'sfu';
+}
+
+function recalculateAda(ada) {
+  const blds = ada.buildings;
+  if (blds.length === 0) {
+    ada.calculations = { splitters: [], cables: [], lossBudget: [], inventory: [], costs: { items: [], total: 0 } };
+    return;
+  }
+
+  // OLT placement
+  if (!ada.topology.oltBuildingId || !blds.find(b => b.id === ada.topology.oltBuildingId)) {
+    ada.topology.oltBuildingId = findOptimalOLT(blds);
+  }
+  if (!ada.topology.antenBuildingId || !blds.find(b => b.id === ada.topology.antenBuildingId)) {
+    ada.topology.antenBuildingId = ada.topology.oltBuildingId;
+  }
+
+  const oltB = blds.find(b => b.id === ada.topology.oltBuildingId);
+  if (!oltB) return;
+
+  // Sort by angle for ring layout
+  const others = blds.filter(b => b.id !== oltB.id);
+  others.sort((a, b) => {
+    const angA = Math.atan2(a.lat - oltB.lat, a.lng - oltB.lng);
+    const angB = Math.atan2(b.lat - oltB.lat, b.lng - oltB.lng);
+    return angA - angB;
+  });
+
+  const half = Math.ceil(others.length / 2);
+  const leftArm = others.slice(0, half);
+  const rightArm = others.slice(half);
+
+  ada.topology.arms = [
+    { name: 'Sol Kol', buildings: leftArm.map(b => b.id) },
+    { name: 'Sag Kol', buildings: rightArm.map(b => b.id) }
+  ];
+
+  if (leftArm.length > 0 && rightArm.length > 0) {
+    ada.topology.ringCable = { from: leftArm[leftArm.length - 1].id, to: rightArm[rightArm.length - 1].id, cores: 4 };
+  } else {
+    ada.topology.ringCable = null;
+  }
+
+  // Splitters
+  ada.calculations.splitters = blds.map(b => {
+    const spls = calcSplitter(b.bb);
+    return { buildingId: b.id, buildingName: b.name, bb: b.bb, splitters: spls,
+      totalPorts: spls.reduce((s, sp) => s + sp.ports, 0),
+      targetSubs: Math.ceil(b.bb * PROJECT.constants.penetrationTarget)
+    };
+  });
+
+  // Cables
+  ada.calculations.cables = [];
+  const addCable = (from, to, cores, type) => {
+    const bFrom = blds.find(b => b.id === from);
+    const bTo = blds.find(b => b.id === to);
+    const dist = bFrom && bTo ? Math.round(distBetween(bFrom, bTo)) : PROJECT.constants.avgCableDistM;
+    ada.calculations.cables.push({ from, to, cores, type, distanceM: dist, fromName: bFrom?.name || '?', toName: bTo?.name || '?' });
+  };
+
+  if (leftArm.length > 0) {
+    addCable(oltB.id, leftArm[0].id, 12, 'distribution');
+    for (let i = 0; i < leftArm.length - 1; i++) addCable(leftArm[i].id, leftArm[i + 1].id, 8, 'distribution');
+  }
+  if (rightArm.length > 0) {
+    addCable(oltB.id, rightArm[0].id, 12, 'distribution');
+    for (let i = 0; i < rightArm.length - 1; i++) addCable(rightArm[i].id, rightArm[i + 1].id, 8, 'distribution');
+  }
+  if (ada.topology.ringCable) {
+    addCable(ada.topology.ringCable.from, ada.topology.ringCable.to, 4, 'ring');
+  }
+
+  // Loss budget
+  ada.calculations.lossBudget = blds.map(b => {
+    const dist = distBetween(oltB, b);
+    const distKm = dist / 1000;
+    const spl = calcSplitter(b.bb);
+    const splLoss = PROJECT.constants.splitterLoss[8] + spl[0].loss;
+    const fiberLoss = distKm * PROJECT.constants.fiberLoss1310;
+    const connLoss = 4 * PROJECT.constants.connectorLoss;
+    const spliceLoss = 2 * PROJECT.constants.spliceLoss;
+    const totalLoss = Math.round((splLoss + fiberLoss + connLoss + spliceLoss) * 10) / 10;
+    const margin = Math.round((PROJECT.constants.maxLossBudget - totalLoss) * 10) / 10;
+    return { buildingId: b.id, buildingName: b.name, bb: b.bb,
+      distanceM: Math.round(dist), distanceKm: Math.round(distKm * 100) / 100,
+      splitterLoss: splLoss, fiberLoss: Math.round(fiberLoss * 10) / 10,
+      connectorLoss: connLoss, spliceLoss, totalLoss, margin,
+      status: margin >= 0 ? 'OK' : 'FAIL'
+    };
+  });
+
+  // Inventory
+  const inv = {};
+  const addInv = (key, qty) => { inv[key] = (inv[key] || 0) + qty; };
+  addInv('olt_port', 1);
+  addInv('sfp_module', 1);
+  addInv('splitter_1x8', 1);
+
+  for (const s of ada.calculations.splitters) {
+    for (const sp of s.splitters) {
+      if (sp.ratio === 8) addInv('splitter_1x8', 1);
+      else if (sp.ratio === 16) addInv('splitter_1x16', 1);
+      else if (sp.ratio === 32) addInv('splitter_1x32', 1);
+    }
+  }
+
+  const totalBB = blds.reduce((s, b) => s + b.bb, 0);
+  addInv('ont', Math.ceil(totalBB * PROJECT.constants.penetrationTarget));
+  addInv('fdh_cabinet', Math.ceil(blds.length / 6));
+
+  let totalConnectors = 0;
+  for (const c of ada.calculations.cables) {
+    const key = c.cores >= 48 ? 'fiber_48' : c.cores >= 24 ? 'fiber_24' : c.cores >= 12 ? 'fiber_12' : 'fiber_4';
+    addInv(key, c.distanceM);
+    totalConnectors += c.cores * 2;
+  }
+  addInv('connector', totalConnectors);
+  addInv('splice_tray', Math.ceil(totalConnectors / 12));
+  if (ada.topology.antenBuildingId) { addInv('anten', 1); addInv('anten_pole', 1); }
+
+  ada.calculations.inventory = Object.entries(inv).map(([key, qty]) => ({
+    key, ...PROJECT.catalog[key], qty, total: qty * (PROJECT.catalog[key]?.price || 0)
+  }));
+
+  ada.calculations.costs = {
+    items: ada.calculations.inventory,
+    total: ada.calculations.inventory.reduce((s, i) => s + i.total, 0)
+  };
+}
+
+function recalculateAll() {
+  for (const ada of PROJECT.adas) recalculateAda(ada);
+  saveData();
+}
+
+// ================================================================
+//  3. SVG SCHEMATIC RENDERER
+// ================================================================
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+let selectedBuildingId = null;
+
+function pentagonPoints(cx, cy, r) {
+  const pts = [];
+  for (let i = 0; i < 5; i++) {
+    const angle = (i * 72 - 90) * Math.PI / 180;
+    pts.push(`${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`);
+  }
+  return pts.join(' ');
+}
+
+function getNodeColor(b, ada) {
+  const type = getBuildingType(b, ada);
+  switch (type) {
+    case 'olt': return { fill: 'rgba(139,92,246,.3)', stroke: '#8b5cf6', text: '#c4b5fd' };
+    case 'mdu-lg': return { fill: 'rgba(34,197,94,.25)', stroke: '#22c55e', text: '#86efac' };
+    case 'mdu-md': return { fill: 'rgba(249,115,22,.25)', stroke: '#f97316', text: '#fdba74' };
+    case 'sfu': return { fill: 'rgba(234,179,8,.25)', stroke: '#eab308', text: '#fde68a' };
+    default: return { fill: 'rgba(148,163,184,.2)', stroke: '#94a3b8', text: '#cbd5e1' };
+  }
+}
+
+function getCableStyle(cable) {
+  switch (cable.type) {
+    case 'backbone': return { color: '#3b5998', width: 4, dash: '' };
+    case 'distribution': return { color: cable.cores >= 12 ? '#f97316' : '#60a5fa', width: cable.cores >= 12 ? 3 : 2.5, dash: '' };
+    case 'ring': return { color: '#6366f1', width: 2, dash: '8 5' };
+    case 'drop': return { color: '#ef4444', width: 1.2, dash: '4 3' };
+    default: return { color: '#94a3b8', width: 1.5, dash: '' };
+  }
+}
+
+function renderSchematic() {
+  const svg = document.getElementById('topo-svg');
+  svg.innerHTML = '';
+  const W = 1800, H = 900;
+
+  // Determine which adas to render
+  const viewAda = PROJECT.viewMode === 'all' ? null : PROJECT.adas.find(a => a.id === PROJECT.viewMode);
+  const adasToRender = viewAda ? [viewAda] : PROJECT.adas.filter(a => a.buildings.length > 0);
+
+  if (adasToRender.length === 0) {
+    const emptyText = document.createElementNS(SVG_NS, 'text');
+    emptyText.setAttribute('x', W / 2); emptyText.setAttribute('y', H / 2);
+    emptyText.setAttribute('text-anchor', 'middle'); emptyText.setAttribute('fill', '#475569');
+    emptyText.setAttribute('font-family', 'JetBrains Mono, monospace'); emptyText.setAttribute('font-size', '16');
+    emptyText.textContent = 'Henuz bina eklenmedi. "+" butonuyla bina ekleyin veya "YENI ADA" ile baslayin.';
+    svg.appendChild(emptyText);
+    return;
+  }
+
+  // Defs
+  const defs = document.createElementNS(SVG_NS, 'defs');
+  defs.innerHTML = `
+    <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
+      <path d="M 50 0 L 0 0 0 50" fill="none" stroke="rgba(30,41,59,0.3)" stroke-width="0.5"/>
+    </pattern>
+    <filter id="glow-olt" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>`;
+  svg.appendChild(defs);
+
+  const bgRect = document.createElementNS(SVG_NS, 'rect');
+  bgRect.setAttribute('width', W); bgRect.setAttribute('height', H); bgRect.setAttribute('fill', 'url(#grid)');
+  svg.appendChild(bgRect);
+
+  // Render each ada
+  const adaCount = adasToRender.length;
+  adasToRender.forEach((ada, adaIndex) => {
+    if (ada.buildings.length === 0) return;
+
+    // Layout: distribute adas vertically when showing all
+    const adaH = adaCount === 1 ? H : H / adaCount;
+    const adaY = adaCount === 1 ? 0 : adaIndex * adaH;
+    const CX = W / 2;
+    const CY = adaY + adaH / 2;
+    const SPACING_X = Math.min(160, (W - 200) / (ada.buildings.length + 1));
+    const WAVE_Y = 35;
+
+    const oltId = ada.topology.oltBuildingId;
+    const oltB = ada.buildings.find(b => b.id === oltId);
+    if (!oltB) return;
+
+    const positions = {};
+    positions[oltId] = { x: CX, y: CY };
+
+    const leftArm = (ada.topology.arms[0]?.buildings || []).map(id => ada.buildings.find(b => b.id === id)).filter(Boolean);
+    const rightArm = (ada.topology.arms[1]?.buildings || []).map(id => ada.buildings.find(b => b.id === id)).filter(Boolean);
+
+    leftArm.forEach((b, i) => { positions[b.id] = { x: CX - (i + 1) * SPACING_X, y: CY + (i % 2 === 0 ? -WAVE_Y : WAVE_Y) }; });
+    rightArm.forEach((b, i) => { positions[b.id] = { x: CX + (i + 1) * SPACING_X, y: CY + (i % 2 === 0 ? -WAVE_Y : WAVE_Y) }; });
+
+    // Ada title
+    const adaTitle = document.createElementNS(SVG_NS, 'text');
+    adaTitle.setAttribute('x', CX); adaTitle.setAttribute('y', adaY + 30);
+    adaTitle.setAttribute('text-anchor', 'middle'); adaTitle.setAttribute('fill', '#facc15');
+    adaTitle.setAttribute('font-family', 'JetBrains Mono, monospace');
+    adaTitle.setAttribute('font-size', adaCount === 1 ? '16' : '13'); adaTitle.setAttribute('font-weight', '700');
+    adaTitle.setAttribute('letter-spacing', '2');
+    const totalBB = ada.buildings.reduce((s, b) => s + b.bb, 0);
+    adaTitle.textContent = `${ada.name} — ${ada.buildings.length} Bina · ${totalBB} BB`;
+    svg.appendChild(adaTitle);
+
+    const statusText = document.createElementNS(SVG_NS, 'text');
+    statusText.setAttribute('x', CX); statusText.setAttribute('y', adaY + 46);
+    statusText.setAttribute('text-anchor', 'middle');
+    statusText.setAttribute('fill', ada.status === 'completed' ? '#22c55e' : '#f97316');
+    statusText.setAttribute('font-family', 'JetBrains Mono, monospace'); statusText.setAttribute('font-size', '10');
+    statusText.textContent = ada.status === 'completed' ? 'TAMAMLANDI' : 'PLANLAMA';
+    svg.appendChild(statusText);
+
+    // Cables
+    for (const cable of ada.calculations.cables) {
+      const p1 = positions[cable.from];
+      const p2 = positions[cable.to];
+      if (!p1 || !p2) continue;
+
+      const style = getCableStyle(cable);
+      const line = document.createElementNS(SVG_NS, 'line');
+      line.setAttribute('x1', p1.x); line.setAttribute('y1', p1.y);
+      line.setAttribute('x2', p2.x); line.setAttribute('y2', p2.y);
+      line.setAttribute('stroke', style.color); line.setAttribute('stroke-width', style.width);
+      line.setAttribute('opacity', '0.8');
+      if (style.dash) line.setAttribute('stroke-dasharray', style.dash);
+      if (cable.type === 'ring') line.classList.add('ring-anim');
+      svg.appendChild(line);
+
+      const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2 - 10;
+      const lbl = document.createElementNS(SVG_NS, 'text');
+      lbl.setAttribute('x', mx); lbl.setAttribute('y', my);
+      lbl.setAttribute('text-anchor', 'middle'); lbl.setAttribute('fill', style.color);
+      lbl.setAttribute('font-family', 'JetBrains Mono, monospace');
+      lbl.setAttribute('font-size', '9'); lbl.setAttribute('font-weight', '600'); lbl.setAttribute('opacity', '0.7');
+      lbl.textContent = cable.type === 'ring' ? `${cable.cores} kor RING` : `${cable.cores} kor`;
+      svg.appendChild(lbl);
+
+      const dLbl = document.createElementNS(SVG_NS, 'text');
+      dLbl.setAttribute('x', mx); dLbl.setAttribute('y', my + 12);
+      dLbl.setAttribute('text-anchor', 'middle'); dLbl.setAttribute('fill', '#475569');
+      dLbl.setAttribute('font-family', 'JetBrains Mono, monospace'); dLbl.setAttribute('font-size', '8');
+      dLbl.textContent = `${cable.distanceM}m`;
+      svg.appendChild(dLbl);
+    }
+
+    // Ring closure arc
+    if (ada.topology.ringCable) {
+      const p1 = positions[ada.topology.ringCable.from];
+      const p2 = positions[ada.topology.ringCable.to];
+      if (p1 && p2) {
+        const midY = Math.max(p1.y, p2.y) + (adaCount === 1 ? 160 : 80);
+        const path = document.createElementNS(SVG_NS, 'path');
+        path.setAttribute('d', `M${p1.x},${p1.y + 30} Q${(p1.x + p2.x) / 2},${midY} ${p2.x},${p2.y + 30}`);
+        path.setAttribute('fill', 'none'); path.setAttribute('stroke', '#6366f1');
+        path.setAttribute('stroke-width', '2'); path.setAttribute('stroke-dasharray', '8 5');
+        path.setAttribute('opacity', '0.5'); path.classList.add('ring-anim');
+        svg.appendChild(path);
+      }
+    }
+
+    // Building nodes
+    for (const b of ada.buildings) {
+      const pos = positions[b.id];
+      if (!pos) continue;
+      const colors = getNodeColor(b, ada);
+      const isOLT = b.id === oltId;
+      const isAnten = b.id === ada.topology.antenBuildingId;
+      const spl = calcSplitter(b.bb);
+
+      const g = document.createElementNS(SVG_NS, 'g');
+      g.classList.add('node-group');
+      g.setAttribute('data-id', b.id);
+      g.setAttribute('data-ada', ada.id);
+      if (isOLT) g.classList.add('olt-glow');
+
+      // Pentagon - BIGGER
+      const R = isOLT ? 32 : 26;
+      const pent = document.createElementNS(SVG_NS, 'polygon');
+      pent.setAttribute('points', pentagonPoints(pos.x, pos.y, R));
+      pent.setAttribute('fill', colors.fill); pent.setAttribute('stroke', colors.stroke);
+      pent.setAttribute('stroke-width', isOLT ? 2.5 : 1.5);
+      pent.classList.add('node-shape');
+      g.appendChild(pent);
+
+      // BB number - BIGGER
+      const bbText = document.createElementNS(SVG_NS, 'text');
+      bbText.setAttribute('x', pos.x); bbText.setAttribute('y', pos.y + 6);
+      bbText.classList.add('node-bb');
+      bbText.setAttribute('fill', isOLT ? '#c4b5fd' : '#f8fafc');
+      bbText.setAttribute('font-size', isOLT ? '16' : '14');
+      bbText.textContent = b.bb;
+      g.appendChild(bbText);
+
+      // Building name - BIGGER
+      const nameText = document.createElementNS(SVG_NS, 'text');
+      nameText.setAttribute('x', pos.x); nameText.setAttribute('y', pos.y - R - 18);
+      nameText.classList.add('node-name');
+      nameText.setAttribute('fill', colors.text);
+      nameText.setAttribute('font-size', '12'); nameText.setAttribute('font-weight', '700');
+      nameText.textContent = b.name;
+      g.appendChild(nameText);
+
+      // Address
+      const addrText = document.createElementNS(SVG_NS, 'text');
+      addrText.setAttribute('x', pos.x); addrText.setAttribute('y', pos.y - R - 6);
+      addrText.classList.add('node-label');
+      addrText.setAttribute('font-size', '9');
+      addrText.textContent = b.addr.length > 30 ? b.addr.substring(0, 30) + '...' : b.addr;
+      g.appendChild(addrText);
+
+      // Splitter info box - BIGGER
+      const boxW = 90, boxH = 36;
+      const boxX = pos.x - boxW / 2, boxY = pos.y + R + 8;
+      const infoRect = document.createElementNS(SVG_NS, 'rect');
+      infoRect.setAttribute('x', boxX); infoRect.setAttribute('y', boxY);
+      infoRect.setAttribute('width', boxW); infoRect.setAttribute('height', boxH);
+      infoRect.setAttribute('rx', 6);
+      infoRect.setAttribute('fill', 'rgba(6,182,212,.08)');
+      infoRect.setAttribute('stroke', 'rgba(6,182,212,.25)'); infoRect.setAttribute('stroke-width', '1');
+      g.appendChild(infoRect);
+
+      const splLabel = document.createElementNS(SVG_NS, 'text');
+      splLabel.setAttribute('x', pos.x); splLabel.setAttribute('y', boxY + 15);
+      splLabel.setAttribute('text-anchor', 'middle'); splLabel.setAttribute('fill', '#67e8f9');
+      splLabel.setAttribute('font-family', 'JetBrains Mono, monospace');
+      splLabel.setAttribute('font-size', '10'); splLabel.setAttribute('font-weight', '600');
+      splLabel.textContent = spl.map(s => '1:' + s.ratio).join(' + ');
+      g.appendChild(splLabel);
+
+      const portLabel = document.createElementNS(SVG_NS, 'text');
+      portLabel.setAttribute('x', pos.x); portLabel.setAttribute('y', boxY + 28);
+      portLabel.setAttribute('text-anchor', 'middle'); portLabel.setAttribute('fill', '#64748b');
+      portLabel.setAttribute('font-family', 'JetBrains Mono, monospace'); portLabel.setAttribute('font-size', '8');
+      portLabel.textContent = `${spl.reduce((s, sp) => s + sp.ports, 0)} port`;
+      g.appendChild(portLabel);
+
+      // OLT badge
+      if (isOLT) {
+        const oltLabel = document.createElementNS(SVG_NS, 'text');
+        oltLabel.setAttribute('x', pos.x); oltLabel.setAttribute('y', pos.y - R - 32);
+        oltLabel.setAttribute('text-anchor', 'middle'); oltLabel.setAttribute('fill', '#facc15');
+        oltLabel.setAttribute('font-family', 'JetBrains Mono, monospace');
+        oltLabel.setAttribute('font-size', '13'); oltLabel.setAttribute('font-weight', '800');
+        oltLabel.textContent = 'OLT';
+        g.appendChild(oltLabel);
+      }
+
+      // Antenna badge
+      if (isAnten) {
+        const ay = isOLT ? pos.y - R - 46 : pos.y - R - 32;
+        const antText = document.createElementNS(SVG_NS, 'text');
+        antText.setAttribute('x', pos.x); antText.setAttribute('y', ay);
+        antText.setAttribute('text-anchor', 'middle'); antText.setAttribute('fill', '#fca5a5');
+        antText.setAttribute('font-family', 'JetBrains Mono, monospace');
+        antText.setAttribute('font-size', '9'); antText.setAttribute('font-weight', '600');
+        antText.textContent = 'ANTEN';
+        g.appendChild(antText);
+      }
+
+      // Events
+      g.addEventListener('click', (e) => { e.stopPropagation(); selectBuilding(b.id, ada.id); });
+      g.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); showContextMenu(e, b, ada); });
+      g.addEventListener('mouseenter', (e) => showTooltip(e, b, ada));
+      g.addEventListener('mouseleave', () => hideTooltip());
+
+      svg.appendChild(g);
+    }
+
+    // Ada separator line
+    if (adaCount > 1 && adaIndex < adaCount - 1) {
+      const sepLine = document.createElementNS(SVG_NS, 'line');
+      sepLine.setAttribute('x1', 50); sepLine.setAttribute('y1', adaY + adaH);
+      sepLine.setAttribute('x2', W - 50); sepLine.setAttribute('y2', adaY + adaH);
+      sepLine.setAttribute('stroke', '#334155'); sepLine.setAttribute('stroke-width', '1');
+      sepLine.setAttribute('stroke-dasharray', '8 4');
+      svg.appendChild(sepLine);
+    }
+  });
+}
+
+// ================================================================
+//  4. INTERACTIONS
+// ================================================================
+
+function showTooltip(e, b, ada) {
+  const tt = document.getElementById('tooltip');
+  const spl = calcSplitter(b.bb);
+  const loss = ada.calculations.lossBudget.find(l => l.buildingId === b.id);
+  const isOLT = b.id === ada.topology.oltBuildingId;
+  const isAnten = b.id === ada.topology.antenBuildingId;
+
+  let html = `<div class="tt-title">${b.name} ${isOLT ? '- OLT' : ''}${isAnten ? ' - ANTEN' : ''}</div>`;
+  html += `<div class="tt-row"><span>Ada</span><b>${ada.name}</b></div>`;
+  html += `<div class="tt-row"><span>Adres</span><b>${b.addr}</b></div>`;
+  html += `<div class="tt-row"><span>BB</span><b>${b.bb}</b></div>`;
+  html += `<div class="tt-row"><span>Kat</span><b>${b.floor}</b></div>`;
+  html += `<div class="tt-row"><span>Splitter</span><b>${spl.map(s => '1:' + s.ratio).join(' + ')}</b></div>`;
+  html += `<div class="tt-row"><span>Port</span><b>${spl.reduce((s, sp) => s + sp.ports, 0)}</b></div>`;
+  if (loss) {
+    html += `<div class="tt-row"><span>Optik Kayip</span><b>${loss.totalLoss} dB</b></div>`;
+    html += `<div class="tt-row"><span>Marj</span><b style="color:${loss.margin >= 0 ? '#22c55e' : '#ef4444'}">${loss.margin} dB</b></div>`;
+  }
+  html += `<div class="tt-row"><span>Elektrik</span><b>${b.hasElectric ? 'Var' : 'Yok'}</b></div>`;
+
+  tt.innerHTML = html;
+  tt.style.display = 'block';
+  tt.style.left = (e.clientX + 16) + 'px';
+  tt.style.top = (e.clientY - 10) + 'px';
+}
+
+function hideTooltip() { document.getElementById('tooltip').style.display = 'none'; }
+
+function showContextMenu(e, b, ada) {
+  const menu = document.getElementById('ctx-menu');
+  const isOLT = b.id === ada.topology.oltBuildingId;
+  const isAnten = b.id === ada.topology.antenBuildingId;
+
+  let html = '';
+  if (!isOLT) html += `<div class="ctx-item" onclick="setOLT(${b.id},${ada.id})">OLT Buraya Ata</div>`;
+  if (!isAnten) html += `<div class="ctx-item" onclick="setAnten(${b.id},${ada.id})">Anten Buraya Ata</div>`;
+  if (isOLT) html += `<div class="ctx-item" style="color:var(--text-dim)">Bu bina OLT merkezi</div>`;
+  html += `<div class="ctx-item" onclick="editBuilding(${b.id},${ada.id})">Duzenle</div>`;
+  html += `<div class="ctx-item" onclick="removeBuilding(${b.id},${ada.id})" style="color:#ef4444">Sil</div>`;
+
+  menu.innerHTML = html;
+  menu.style.display = 'block';
+  menu.style.left = e.clientX + 'px';
+  menu.style.top = e.clientY + 'px';
+}
+
+document.addEventListener('click', () => { document.getElementById('ctx-menu').style.display = 'none'; });
+
+function setOLT(buildingId, adaId) {
+  const ada = PROJECT.adas.find(a => a.id === adaId);
+  if (!ada) return;
+  ada.topology.oltBuildingId = buildingId;
+  ada.topology.antenBuildingId = buildingId;
+  document.getElementById('ctx-menu').style.display = 'none';
+  recalculateAda(ada);
+  fullRefresh();
+}
+
+function setAnten(buildingId, adaId) {
+  const ada = PROJECT.adas.find(a => a.id === adaId);
+  if (!ada) return;
+  ada.topology.antenBuildingId = buildingId;
+  document.getElementById('ctx-menu').style.display = 'none';
+  recalculateAda(ada);
+  fullRefresh();
+}
+
+function selectBuilding(buildingId, adaId) {
+  selectedBuildingId = buildingId;
+  if (adaId) PROJECT.activeAdaId = adaId;
+  renderBuildingList();
+  renderAdaSelector();
+}
+
+function editBuilding(buildingId, adaId) {
+  const ada = PROJECT.adas.find(a => a.id === adaId);
+  if (!ada) return;
+  const b = ada.buildings.find(x => x.id === buildingId);
+  if (!b) return;
+  const name = prompt('Bina adi:', b.name);
+  if (name) b.name = name;
+  const bb = prompt('BB sayisi:', b.bb);
+  if (bb) b.bb = parseInt(bb) || b.bb;
+  const floor = prompt('Kat sayisi:', b.floor);
+  if (floor) b.floor = parseInt(floor) || b.floor;
+  document.getElementById('ctx-menu').style.display = 'none';
+  recalculateAda(ada);
+  fullRefresh();
+}
+
+function removeBuilding(buildingId, adaId) {
+  const ada = PROJECT.adas.find(a => a.id === adaId);
+  if (!ada) return;
+  if (!confirm('Bu binayi silmek istediginizden emin misiniz?')) return;
+  ada.buildings = ada.buildings.filter(b => b.id !== buildingId);
+  if (ada.topology.oltBuildingId === buildingId) ada.topology.oltBuildingId = null;
+  if (ada.topology.antenBuildingId === buildingId) ada.topology.antenBuildingId = null;
+  document.getElementById('ctx-menu').style.display = 'none';
+  recalculateAda(ada);
+  fullRefresh();
+}
+
+// ================================================================
+//  5. ADA MANAGEMENT
+// ================================================================
+
+function yeniAda() {
+  const name = prompt('Ada adi (ornek: Bugday Pazari Mah. Ada 1):');
+  if (!name) return;
+  createAda(name);
+  PROJECT.viewMode = PROJECT.activeAdaId;
+  fullRefresh();
+}
+
+function adaBitir() {
+  const ada = getActiveAda();
+  if (!ada) { alert('Aktif ada yok. Once yeni ada olusturun.'); return; }
+  if (ada.buildings.length === 0) { alert('Bu adada henuz bina yok.'); return; }
+
+  // Auto-place OLT
+  ada.topology.oltBuildingId = findOptimalOLT(ada.buildings);
+  ada.topology.antenBuildingId = ada.topology.oltBuildingId;
+  ada.status = 'completed';
+
+  recalculateAda(ada);
+  fullRefresh();
+
+  const oltB = ada.buildings.find(b => b.id === ada.topology.oltBuildingId);
+  alert(`Ada tamamlandi!\n\nOLT & Anten konumu: ${oltB?.name || '?'}\nDegistirmek icin binaya sag tiklayin.`);
+}
+
+function switchAda(adaId) {
+  if (adaId === 'all') {
+    PROJECT.viewMode = 'all';
+  } else {
+    PROJECT.activeAdaId = adaId;
+    PROJECT.viewMode = adaId;
+  }
+  fullRefresh();
+}
+
+function deleteAda(adaId) {
+  if (!confirm('Bu adayi ve tum binalarini silmek istediginizden emin misiniz?')) return;
+  PROJECT.adas = PROJECT.adas.filter(a => a.id !== adaId);
+  if (PROJECT.activeAdaId === adaId) {
+    PROJECT.activeAdaId = PROJECT.adas.length > 0 ? PROJECT.adas[0].id : null;
+  }
+  PROJECT.viewMode = 'all';
+  fullRefresh();
+}
+
+// ================================================================
+//  6. PANEL RENDERERS
+// ================================================================
+
+function renderAdaSelector() {
+  const el = document.getElementById('ada-selector');
+  let html = '<div class="ada-tabs">';
+  html += `<button class="ada-tab all ${PROJECT.viewMode === 'all' ? 'active' : ''}" onclick="switchAda('all')">TUMU</button>`;
+  for (const ada of PROJECT.adas) {
+    const isActive = PROJECT.viewMode === ada.id;
+    const bCount = ada.buildings.length;
+    const statusIcon = ada.status === 'completed' ? ' [OK]' : '';
+    html += `<button class="ada-tab ${isActive ? 'active' : ''}" onclick="switchAda(${ada.id})" oncontextmenu="event.preventDefault();if(confirm('${ada.name} adasini sil?'))deleteAda(${ada.id})">${ada.name} (${bCount})${statusIcon}</button>`;
+  }
+  html += '</div>';
+
+  const activeAda = getActiveAda();
+  if (activeAda) {
+    html += `<div class="ada-status">Aktif: ${activeAda.name} · ${activeAda.status === 'completed' ? 'Tamamlandi' : 'Planlama'} · ${activeAda.buildings.length} bina</div>`;
+  } else {
+    html += '<div class="ada-status">Aktif ada yok. "YENI ADA" ile baslayin.</div>';
+  }
+  el.innerHTML = html;
+}
+
+function renderBuildingList() {
+  const list = document.getElementById('building-list');
+  const ada = PROJECT.viewMode === 'all' ? null : PROJECT.adas.find(a => a.id === PROJECT.viewMode);
+  const buildings = ada ? ada.buildings : getAllBuildings();
+
+  if (buildings.length === 0) {
+    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:.75rem">Henuz bina eklenmedi</div>';
+    return;
+  }
+
+  let html = '';
+  for (const b of buildings) {
+    const bAda = ada || PROJECT.adas.find(a => a.buildings.some(x => x.id === b.id));
+    if (!bAda) continue;
+    const type = getBuildingType(b, bAda);
+    const isOLT = b.id === bAda.topology.oltBuildingId;
+    const isAnten = b.id === bAda.topology.antenBuildingId;
+    const spl = calcSplitter(b.bb);
+    const iconColor = isOLT ? '#8b5cf6' : type === 'mdu-lg' ? '#22c55e' : type === 'mdu-md' ? '#f97316' : '#eab308';
+
+    html += `<div class="bldg-card ${b.id === selectedBuildingId ? 'selected' : ''} ${isOLT ? 'is-olt' : ''}" onclick="selectBuilding(${b.id},${bAda.id})">
+      <div class="bldg-top">
+        <div class="bldg-icon"><svg width="18" height="18"><polygon points="9,1 17,6.5 14.5,15 3.5,15 1,6.5" fill="${iconColor}33" stroke="${iconColor}" stroke-width="1.5"/></svg></div>
+        <div class="bldg-name">${b.name}</div>
+        <div class="bldg-bb">${b.bb} BB</div>
+      </div>
+      <div class="bldg-detail">${b.addr}${!ada ? ' · ' + bAda.name : ''}</div>
+      <div class="bldg-badges">
+        ${isOLT ? '<span class="badge badge-olt">OLT</span>' : ''}
+        ${isAnten ? '<span class="badge badge-anten">ANTEN</span>' : ''}
+        <span class="badge badge-splitter">${spl.map(s => '1:' + s.ratio).join('+')}</span>
+        <span class="badge badge-mdu">${b.floor}K ${b.hasElectric ? 'E' : '-'}</span>
+      </div>
+    </div>`;
+  }
+  list.innerHTML = html;
+}
+
+function filterBuildings(q) {
+  const cards = document.querySelectorAll('.bldg-card');
+  const query = q.toLowerCase();
+  cards.forEach(card => {
+    const text = card.textContent.toLowerCase();
+    card.style.display = text.includes(query) ? '' : 'none';
+  });
+}
+
+function renderBottomPanels() {
+  const ada = PROJECT.viewMode === 'all' ? null : PROJECT.adas.find(a => a.id === PROJECT.viewMode);
+
+  if (ada) {
+    renderSummary(ada);
+    renderLossBudget(ada);
+    renderCablePlan(ada);
+    renderInventory(ada);
+    renderCost(ada);
+  } else {
+    renderSummaryAll();
+    renderLossBudgetAll();
+    renderCablePlanAll();
+    renderInventoryAll();
+    renderCostAll();
+  }
+}
+
+function renderSummary(ada) {
+  const blds = ada.buildings;
+  const totalBB = blds.reduce((s, b) => s + b.bb, 0);
+  const target = Math.ceil(totalBB * PROJECT.constants.penetrationTarget);
+  const totalCable = ada.calculations.cables.reduce((s, c) => s + c.distanceM, 0);
+  const oltB = blds.find(b => b.id === ada.topology.oltBuildingId);
+  const worst = ada.calculations.lossBudget.length > 0 ? ada.calculations.lossBudget.reduce((w, l) => l.totalLoss > w.totalLoss ? l : w, ada.calculations.lossBudget[0]) : null;
+
+  document.getElementById('bt-summary').innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px">
+      ${statCard(ada.name, 'ADA')}
+      ${statCard(blds.length, 'BINA')}
+      ${statCard(totalBB, 'TOPLAM BB')}
+      ${statCard(target, '%70 HEDEF')}
+      ${statCard(oltB?.name || '-', 'OLT')}
+      ${statCard((totalCable / 1000).toFixed(1) + ' km', 'FIBER')}
+      ${statCard(worst ? worst.margin + ' dB' : '-', 'MIN MARJ', worst && worst.margin < 0 ? 'var(--danger)' : 'var(--success)')}
+      ${statCard(formatTL(ada.calculations.costs.total), 'MALIYET')}
+    </div>`;
+}
+
+function renderSummaryAll() {
+  const totalAda = PROJECT.adas.length;
+  const totalBldg = PROJECT.adas.reduce((s, a) => s + a.buildings.length, 0);
+  const totalBB = PROJECT.adas.reduce((s, a) => s + a.buildings.reduce((s2, b) => s2 + b.bb, 0), 0);
+  const totalCost = PROJECT.adas.reduce((s, a) => s + (a.calculations.costs?.total || 0), 0);
+  const completed = PROJECT.adas.filter(a => a.status === 'completed').length;
+
+  document.getElementById('bt-summary').innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px">
+      ${statCard(totalAda, 'ADA')}
+      ${statCard(completed + '/' + totalAda, 'TAMAMLANAN')}
+      ${statCard(totalBldg, 'TOPLAM BINA')}
+      ${statCard(totalBB, 'TOPLAM BB')}
+      ${statCard(formatTL(totalCost), 'TOPLAM MALIYET')}
+    </div>`;
+}
+
+function statCard(value, label, color) {
+  return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center">
+    <div style="font-family:JetBrains Mono;font-size:1.2rem;font-weight:700;color:${color || 'var(--accent)'}">${value}</div>
+    <div style="font-size:.65rem;color:var(--text-dim);font-family:JetBrains Mono;text-transform:uppercase;letter-spacing:1px;margin-top:2px">${label}</div>
+  </div>`;
+}
+
+function formatTL(n) { return n >= 1000 ? (n / 1000).toFixed(0) + 'K TL' : n + ' TL'; }
+
+function renderLossBudget(ada) {
+  let rows = ada.calculations.lossBudget.map(l => `
+    <tr class="${l.buildingId === ada.topology.oltBuildingId ? 'highlight' : ''}">
+      <td><b>${l.buildingName}</b></td><td>${l.bb}</td><td>${l.distanceM}m</td>
+      <td>${l.splitterLoss} dB</td><td>${l.fiberLoss} dB</td><td>${l.connectorLoss} dB</td>
+      <td><b>${l.totalLoss} dB</b></td>
+      <td style="color:${l.margin >= 0 ? '#22c55e' : '#ef4444'};font-weight:700">${l.margin} dB ${l.status === 'OK' ? 'OK' : 'FAIL'}</td>
+    </tr>`).join('');
+
+  document.getElementById('bt-loss').innerHTML = `
+    <table class="data-table">
+      <thead><tr><th>Bina</th><th>BB</th><th>Mesafe</th><th>Splitter</th><th>Fiber</th><th>Kon.</th><th>Toplam</th><th>Marj</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function renderLossBudgetAll() {
+  let rows = '';
+  for (const ada of PROJECT.adas) {
+    for (const l of ada.calculations.lossBudget) {
+      rows += `<tr><td>${ada.name}</td><td><b>${l.buildingName}</b></td><td>${l.bb}</td><td>${l.distanceM}m</td><td><b>${l.totalLoss} dB</b></td>
+        <td style="color:${l.margin >= 0 ? '#22c55e' : '#ef4444'};font-weight:700">${l.margin} dB</td></tr>`;
+    }
+  }
+  document.getElementById('bt-loss').innerHTML = `
+    <table class="data-table">
+      <thead><tr><th>Ada</th><th>Bina</th><th>BB</th><th>Mesafe</th><th>Toplam</th><th>Marj</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function renderCablePlan(ada) {
+  let rows = ada.calculations.cables.map(c => {
+    const style = getCableStyle(c);
+    return `<tr><td>${c.fromName} > ${c.toName}</td>
+      <td><span style="display:inline-block;width:14px;height:3px;background:${style.color};border-radius:2px;margin-right:4px;vertical-align:middle"></span>${c.cores} kor</td>
+      <td>${c.type}</td><td>${c.distanceM}m</td></tr>`;
+  }).join('');
+
+  const totalM = ada.calculations.cables.reduce((s, c) => s + c.distanceM, 0);
+  document.getElementById('bt-cable').innerHTML = `
+    <table class="data-table">
+      <thead><tr><th>Segment</th><th>Kor</th><th>Tip</th><th>Mesafe</th></tr></thead>
+      <tbody>${rows}
+        <tr style="border-top:2px solid var(--border)"><td><b>TOPLAM</b></td><td></td><td></td><td><b>${totalM}m (${(totalM / 1000).toFixed(2)} km)</b></td></tr>
+      </tbody>
+    </table>`;
+}
+
+function renderCablePlanAll() {
+  let rows = '';
+  for (const ada of PROJECT.adas) {
+    for (const c of ada.calculations.cables) {
+      rows += `<tr><td>${ada.name}</td><td>${c.fromName} > ${c.toName}</td><td>${c.cores} kor</td><td>${c.type}</td><td>${c.distanceM}m</td></tr>`;
+    }
+  }
+  document.getElementById('bt-cable').innerHTML = `
+    <table class="data-table">
+      <thead><tr><th>Ada</th><th>Segment</th><th>Kor</th><th>Tip</th><th>Mesafe</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function renderInventory(ada) {
+  let rows = ada.calculations.inventory.map(i => `
+    <tr><td>${i.name}</td><td>${i.qty} ${i.unit}</td><td>${i.price.toLocaleString('tr-TR')} TL</td><td><b>${i.total.toLocaleString('tr-TR')} TL</b></td></tr>`).join('');
+
+  document.getElementById('bt-inventory').innerHTML = `
+    <table class="data-table">
+      <thead><tr><th>Ekipman</th><th>Miktar</th><th>Birim</th><th>Toplam</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function renderInventoryAll() {
+  const merged = {};
+  for (const ada of PROJECT.adas) {
+    for (const item of ada.calculations.inventory) {
+      if (!merged[item.key]) merged[item.key] = { ...item, qty: 0, total: 0 };
+      merged[item.key].qty += item.qty;
+      merged[item.key].total += item.total;
+    }
+  }
+  let rows = Object.values(merged).map(i => `
+    <tr><td>${i.name}</td><td>${i.qty} ${i.unit}</td><td>${i.price?.toLocaleString('tr-TR') || 0} TL</td><td><b>${i.total.toLocaleString('tr-TR')} TL</b></td></tr>`).join('');
+
+  document.getElementById('bt-inventory').innerHTML = `
+    <table class="data-table">
+      <thead><tr><th>Ekipman</th><th>Miktar</th><th>Birim</th><th>Toplam</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function renderCost(ada) {
+  const total = ada.calculations.costs.total || 0;
+  const totalBB = ada.buildings.reduce((s, b) => s + b.bb, 0);
+  const perBB = totalBB > 0 ? Math.round(total / totalBB) : 0;
+
+  document.getElementById('bt-cost').innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+      ${statCard(total.toLocaleString('tr-TR') + ' TL', 'TOPLAM MALIYET')}
+      ${statCard(perBB.toLocaleString('tr-TR') + ' TL', 'BB BASI', 'var(--info)')}
+      ${statCard(totalBB > 0 ? Math.round(total / Math.ceil(totalBB * PROJECT.constants.penetrationTarget)).toLocaleString('tr-TR') + ' TL' : '-', 'ABONE BASI', 'var(--success)')}
+    </div>`;
+}
+
+function renderCostAll() {
+  const totalCost = PROJECT.adas.reduce((s, a) => s + (a.calculations.costs?.total || 0), 0);
+  const totalBB = PROJECT.adas.reduce((s, a) => s + a.buildings.reduce((s2, b) => s2 + b.bb, 0), 0);
+
+  document.getElementById('bt-cost').innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+      ${statCard(totalCost.toLocaleString('tr-TR') + ' TL', 'GENEL TOPLAM')}
+      ${statCard(totalBB > 0 ? Math.round(totalCost / totalBB).toLocaleString('tr-TR') + ' TL' : '-', 'BB BASI', 'var(--info)')}
+      ${statCard(PROJECT.adas.length, 'ADA SAYISI', 'var(--success)')}
+    </div>`;
+}
+
+function updateTopStats() {
+  const totalAda = PROJECT.adas.length;
+  const totalBldg = PROJECT.adas.reduce((s, a) => s + a.buildings.length, 0);
+  const totalBB = PROJECT.adas.reduce((s, a) => s + a.buildings.reduce((s2, b) => s2 + b.bb, 0), 0);
+  const totalCost = PROJECT.adas.reduce((s, a) => s + (a.calculations.costs?.total || 0), 0);
+  document.getElementById('stat-ada').innerHTML = `Ada: <b>${totalAda}</b>`;
+  document.getElementById('stat-buildings').innerHTML = `Bina: <b>${totalBldg}</b>`;
+  document.getElementById('stat-bb').innerHTML = `BB: <b>${totalBB}</b>`;
+  document.getElementById('stat-cost').innerHTML = `Maliyet: <b>${formatTL(totalCost)}</b>`;
+}
+
+// ================================================================
+//  7. BUILDING ADD
+// ================================================================
+
+function addBuildingPrompt() {
+  if (!getActiveAda()) {
+    const name = prompt('Once ada olusturun. Ada adi:');
+    if (!name) return;
+    createAda(name);
+    PROJECT.viewMode = PROJECT.activeAdaId;
+  }
+  document.getElementById('modal-add').classList.add('show');
+}
+
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+function addBuildingSubmit() {
+  const ada = getActiveAda();
+  if (!ada) return;
+
+  const name = document.getElementById('m-name').value.trim();
+  if (!name) { alert('Bina adi gerekli'); return; }
+
+  const bb = parseInt(document.getElementById('m-bb').value) || 12;
+  const floor = parseInt(document.getElementById('m-floor').value) || 4;
+  const hasElectric = document.getElementById('m-electric').value === '1';
+  const addr = document.getElementById('m-addr').value.trim() || '';
+
+  let lat = parseFloat(document.getElementById('m-lat').value);
+  let lng = parseFloat(document.getElementById('m-lng').value);
+
+  // Auto-generate coordinates near existing buildings if not provided
+  if (isNaN(lat) || isNaN(lng)) {
+    if (ada.buildings.length > 0) {
+      const last = ada.buildings[ada.buildings.length - 1];
+      lat = last.lat + (Math.random() - 0.5) * 0.002;
+      lng = last.lng + (Math.random() - 0.5) * 0.002;
+    } else {
+      lat = 40.601 + (Math.random() - 0.5) * 0.005;
+      lng = 33.614 + (Math.random() - 0.5) * 0.005;
+    }
+  }
+
+  ada.buildings.push({
+    id: PROJECT.nextBuildingId++,
+    name, addr, bb, lat, lng, floor, hasElectric
+  });
+
+  closeModal('modal-add');
+  // Clear form
+  document.getElementById('m-name').value = '';
+  document.getElementById('m-addr').value = '';
+  document.getElementById('m-bb').value = '12';
+  document.getElementById('m-lat').value = '';
+  document.getElementById('m-lng').value = '';
+
+  recalculateAda(ada);
+  fullRefresh();
+}
+
+// ================================================================
+//  8. MAP VIEW (Leaflet + Esri Satellite)
+// ================================================================
+
+let leafletMap = null;
+let mapMarkers = [];
+let mapCables = [];
+
+function initMap() {
+  if (leafletMap) return;
+  leafletMap = L.map('leaflet-map', { zoomControl: true }).setView([40.601, 33.614], 16);
+
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Esri Satellite', maxZoom: 20
+  }).addTo(leafletMap);
+
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 20, opacity: 0.5
+  }).addTo(leafletMap);
+}
+
+function renderMap() {
+  if (!leafletMap) return;
+  mapMarkers.forEach(m => leafletMap.removeLayer(m));
+  mapCables.forEach(c => leafletMap.removeLayer(c));
+  mapMarkers = []; mapCables = [];
+
+  const adasToRender = PROJECT.viewMode === 'all' ? PROJECT.adas : PROJECT.adas.filter(a => a.id === PROJECT.viewMode);
+
+  for (const ada of adasToRender) {
+    // Cables
+    for (const cable of ada.calculations.cables) {
+      const b1 = ada.buildings.find(b => b.id === cable.from);
+      const b2 = ada.buildings.find(b => b.id === cable.to);
+      if (!b1 || !b2) continue;
+      const style = getCableStyle(cable);
+      const line = L.polyline([[b1.lat, b1.lng], [b2.lat, b2.lng]], {
+        color: style.color, weight: style.width + 1, opacity: 0.8,
+        dashArray: style.dash || null
+      }).addTo(leafletMap);
+      line.bindTooltip(`${cable.cores} kor · ${cable.distanceM}m`, { sticky: true });
+      mapCables.push(line);
+    }
+
+    // Buildings
+    for (const b of ada.buildings) {
+      const isOLT = b.id === ada.topology.oltBuildingId;
+      const type = getBuildingType(b, ada);
+      const color = isOLT ? '#8b5cf6' : type === 'mdu-lg' ? '#22c55e' : type === 'mdu-md' ? '#f97316' : '#eab308';
+      const size = isOLT ? 18 : 14;
+
+      const icon = L.divIcon({
+        className: '',
+        html: `<svg width="${size * 2}" height="${size * 2 + 16}" style="filter:drop-shadow(0 2px 4px rgba(0,0,0,.6))">
+          <polygon points="${pentagonPoints(size, size, size)}" fill="${color}55" stroke="${color}" stroke-width="2.5"/>
+          <text x="${size}" y="${size + 5}" text-anchor="middle" fill="white" font-size="${size - 2}" font-weight="700" font-family="JetBrains Mono">${b.bb}</text>
+          <text x="${size}" y="${size * 2 + 12}" text-anchor="middle" fill="${color}" font-size="9" font-weight="600" font-family="JetBrains Mono">${b.name.substring(0, 12)}</text>
+        </svg>`,
+        iconSize: [size * 2, size * 2 + 16],
+        iconAnchor: [size, size]
+      });
+
+      const marker = L.marker([b.lat, b.lng], { icon, draggable: true }).addTo(leafletMap);
+      const spl = calcSplitter(b.bb);
+      marker.bindPopup(`<b>${b.name}</b>${isOLT ? ' - OLT' : ''}<br>${ada.name}<br>${b.addr}<br>${b.bb} BB · ${spl.map(s => '1:' + s.ratio).join('+')}<br>Kat: ${b.floor}`);
+      marker.on('dragend', (e) => {
+        const pos = e.target.getLatLng();
+        b.lat = pos.lat; b.lng = pos.lng;
+        recalculateAda(ada);
+        fullRefresh();
+      });
+      mapMarkers.push(marker);
+    }
+  }
+
+  // Fit bounds
+  const allCoords = adasToRender.flatMap(a => a.buildings.map(b => [b.lat, b.lng]));
+  if (allCoords.length > 1) leafletMap.fitBounds(allCoords, { padding: [30, 30] });
+  else if (allCoords.length === 1) leafletMap.setView(allCoords[0], 17);
+}
+
+// ================================================================
+//  9. VIEW SWITCHING & EXPORT
+// ================================================================
+
+function switchView(view) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+
+  if (view === 'schematic') {
+    document.getElementById('schematic-view').style.display = '';
+    document.getElementById('map-view').style.display = 'none';
+  } else {
+    document.getElementById('schematic-view').style.display = 'none';
+    document.getElementById('map-view').style.display = '';
+    initMap();
+    setTimeout(() => { leafletMap.invalidateSize(); renderMap(); }, 100);
+  }
+}
+
+function switchBTab(btn, tabId) {
+  document.querySelectorAll('.btab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.bottom-content').forEach(c => c.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active');
+}
+
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(PROJECT, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = `ftth-ada-plan-${PROJECT.meta.date}.json`; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportCSV() {
+  const headers = ['Ada', 'ID', 'Bina', 'Adres', 'BB', 'Kat', 'Splitter', 'Kayip(dB)', 'Marj(dB)', 'OLT', 'Anten', 'Lat', 'Lng'];
+  const rows = [];
+  for (const ada of PROJECT.adas) {
+    for (const b of ada.buildings) {
+      const spl = calcSplitter(b.bb);
+      const loss = ada.calculations.lossBudget.find(l => l.buildingId === b.id);
+      rows.push([ada.name, b.id, b.name, `"${b.addr}"`, b.bb, b.floor,
+        spl.map(s => '1:' + s.ratio).join('+'),
+        loss?.totalLoss || '', loss?.margin || '',
+        b.id === ada.topology.oltBuildingId ? 'EVET' : '',
+        b.id === ada.topology.antenBuildingId ? 'EVET' : '',
+        b.lat, b.lng
+      ].join(','));
+    }
+  }
+  const csv = [headers.join(','), ...rows].join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = `ftth-ada-plan-${PROJECT.meta.date}.csv`; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ================================================================
+//  10. ORCHESTRATION
+// ================================================================
+
+function fullRefresh() {
+  recalculateAll();
+  renderSchematic();
+  renderAdaSelector();
+  renderBuildingList();
+  renderBottomPanels();
+  updateTopStats();
+  if (leafletMap) renderMap();
+}
+
+// DEMO DATA
+function loadDemoData() {
+  if (PROJECT.adas.length > 0) return;
+
+  const ada1 = createAda('Bugday Pazari Mah. Ada 1');
+  ada1.buildings = [
+    { id: 1, name: 'Yildirim Apt.', addr: 'Ataturk Cd. No:12', bb: 21, lat: 40.60120, lng: 33.61400, floor: 5, hasElectric: true },
+    { id: 2, name: 'Gunes Apt.', addr: 'Istiklal Sk. No:8', bb: 13, lat: 40.60150, lng: 33.61450, floor: 4, hasElectric: true },
+    { id: 3, name: 'Akin Sitesi', addr: 'Cumhuriyet Cd. No:22', bb: 10, lat: 40.60180, lng: 33.61490, floor: 3, hasElectric: true },
+    { id: 4, name: 'Kale Apt.', addr: 'Kale Sk. No:5', bb: 7, lat: 40.60200, lng: 33.61530, floor: 3, hasElectric: false },
+    { id: 5, name: 'Cankiri Is Mrk.', addr: 'Pazar Cd. No:1', bb: 16, lat: 40.60170, lng: 33.61360, floor: 6, hasElectric: true }
+  ];
+  PROJECT.nextBuildingId = 6;
+
+  const ada2 = createAda('Karatas Mah. Ada 2');
+  ada2.buildings = [
+    { id: 6, name: 'Merkez Bina', addr: 'Hukumet Cd. No:3', bb: 12, lat: 40.60340, lng: 33.61620, floor: 4, hasElectric: true },
+    { id: 7, name: 'Park Rezidans', addr: 'Park Cd. No:15', bb: 21, lat: 40.60310, lng: 33.61700, floor: 7, hasElectric: true },
+    { id: 8, name: 'Zafer Apt.', addr: 'Zafer Sk. No:11', bb: 15, lat: 40.60290, lng: 33.61750, floor: 5, hasElectric: true },
+    { id: 9, name: 'Ozgur Sitesi', addr: 'Ozgurluk Cd. No:9', bb: 11, lat: 40.60360, lng: 33.61800, floor: 4, hasElectric: false },
+    { id: 10, name: 'Dogu Konutlari', addr: 'Dogu Sk. No:20', bb: 17, lat: 40.60380, lng: 33.61850, floor: 5, hasElectric: true }
+  ];
+  PROJECT.nextBuildingId = 11;
+
+  // Auto-complete both adas
+  for (const ada of PROJECT.adas) {
+    ada.topology.oltBuildingId = findOptimalOLT(ada.buildings);
+    ada.topology.antenBuildingId = ada.topology.oltBuildingId;
+    ada.status = 'completed';
+  }
+
+  PROJECT.viewMode = 'all';
+}
+
+// INIT
+loadData();
+if (PROJECT.adas.length === 0) loadDemoData();
+fullRefresh();
+</script>
+</body>
+</html>

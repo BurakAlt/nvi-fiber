@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>FiberPlan — Abone Portali</title>
+<link rel="stylesheet" href="css/portal.css">
+<link rel="icon" href="../fiber-chrome/icons/favicon-32x32.png" type="image/png">
+</head>
+<body>
+
+<!-- ══════ LOGIN SCREEN ══════ -->
+<div id="p-login-screen" class="p-login-wrap">
+  <div class="p-login-card">
+    <div class="p-login-logo">
+      <h1>FIBERPLAN</h1>
+      <p>Abone Self-Servis Portali</p>
+    </div>
+    <form id="p-login-form">
+      <div class="p-form-group">
+        <label for="p-login-subscriber">Abone No</label>
+        <input class="p-input" id="p-login-subscriber" type="text" placeholder="AB-1001" autocomplete="username" maxlength="20" pattern="[A-Za-z0-9\-]+" required>
+      </div>
+      <div class="p-form-group">
+        <label for="p-login-password">Sifre</label>
+        <input class="p-input" id="p-login-password" type="password" placeholder="Sifreniz" autocomplete="current-password" maxlength="64" required>
+      </div>
+      <div class="p-login-error" id="p-login-error"></div>
+      <button class="p-btn p-btn-primary" id="p-login-btn" type="submit">Giris Yap</button>
+    </form>
+    <div class="p-login-demo">
+      Demo: <button class="p-btn p-btn-outline p-btn-sm" id="p-demo-login" type="button">AB-1001 ile doldur</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ APP SHELL ══════ -->
+<div id="p-app" class="p-app">
+
+  <!-- Header -->
+  <header class="p-header">
+    <div class="p-header-left">
+      <span class="p-header-logo">FIBERPLAN</span>
+    </div>
+    <div class="p-header-user">
+      <div class="p-header-avatar"><span id="p-header-avatar-text">A</span></div>
+      <span id="p-header-name">Abone</span>
+      <button class="p-btn-logout" id="p-btn-logout">Cikis</button>
+    </div>
+  </header>
+
+  <!-- Navigation -->
+  <nav class="p-bottom-nav">
+    <button class="p-nav-item active" data-page="dashboard">
+      <span class="p-nav-icon">&#9638;</span>
+      <span>Ana Sayfa</span>
+    </button>
+    <button class="p-nav-item" data-page="billing">
+      <span class="p-nav-icon">&#9783;</span>
+      <span>Faturalar</span>
+    </button>
+    <button class="p-nav-item" data-page="packages">
+      <span class="p-nav-icon">&#9881;</span>
+      <span>Paketler</span>
+    </button>
+    <button class="p-nav-item" data-page="speedtest">
+      <span class="p-nav-icon">&#9889;</span>
+      <span>Hiz Testi</span>
+    </button>
+    <button class="p-nav-item" data-page="support">
+      <span class="p-nav-icon">&#9993;</span>
+      <span>Destek</span>
+    </button>
+    <button class="p-nav-item" data-page="wifi">
+      <span class="p-nav-icon">&#128246;</span>
+      <span>WiFi</span>
+    </button>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="p-main" id="p-content" role="main">
+    <!-- JS ile render edilir -->
+  </main>
+
+  <!-- Screen reader bildirimi -->
+  <div id="p-aria-live" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+</div>
+
+<!-- ══════ MODAL OVERLAY ══════ -->
+<div class="p-modal-overlay" id="p-modal-overlay">
+  <div class="p-modal" id="p-modal"></div>
+</div>
+
+<!-- ══════ TOAST CONTAINER ══════ -->
+<div class="p-toast-container" id="p-toast-container"></div>
+
+<!-- Scripts -->
+<script src="js/api-client.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/speedtest.js"></script>
+<script src="js/portal.js"></script>
+</body>
+</html>
