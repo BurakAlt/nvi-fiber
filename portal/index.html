@@ -3,8 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>FiberPlan — Abone Portali</title>
+<title>FiberPlan — ISP Yonetim Paneli</title>
 <link rel="stylesheet" href="css/portal.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="icon" href="../fiber-chrome/icons/favicon-32x32.png" type="image/png">
 </head>
 <body>
@@ -14,12 +15,12 @@
   <div class="p-login-card">
     <div class="p-login-logo">
       <h1>FIBERPLAN</h1>
-      <p>Abone Self-Servis Portali</p>
+      <p>ISP Yonetim Paneli</p>
     </div>
     <form id="p-login-form">
       <div class="p-form-group">
-        <label for="p-login-subscriber">Abone No</label>
-        <input class="p-input" id="p-login-subscriber" type="text" placeholder="AB-1001" autocomplete="username" maxlength="20" pattern="[A-Za-z0-9\-]+" required>
+        <label for="p-login-username">Kullanici Adi</label>
+        <input class="p-input" id="p-login-username" type="text" placeholder="admin" autocomplete="username" maxlength="32" required>
       </div>
       <div class="p-form-group">
         <label for="p-login-password">Sifre</label>
@@ -29,7 +30,7 @@
       <button class="p-btn p-btn-primary" id="p-login-btn" type="submit">Giris Yap</button>
     </form>
     <div class="p-login-demo">
-      Demo: <button class="p-btn p-btn-outline p-btn-sm" id="p-demo-login" type="button">AB-1001 ile doldur</button>
+      Demo: <button class="p-btn p-btn-outline p-btn-sm" id="p-demo-login" type="button">admin / admin123</button>
     </div>
   </div>
 </div>
@@ -41,10 +42,11 @@
   <header class="p-header">
     <div class="p-header-left">
       <span class="p-header-logo">FIBERPLAN</span>
+      <span class="fs-sm text-dim">ISP Admin</span>
     </div>
     <div class="p-header-user">
       <div class="p-header-avatar"><span id="p-header-avatar-text">A</span></div>
-      <span id="p-header-name">Abone</span>
+      <span id="p-header-name">Admin</span>
       <button class="p-btn-logout" id="p-btn-logout">Cikis</button>
     </div>
   </header>
@@ -53,27 +55,35 @@
   <nav class="p-bottom-nav">
     <button class="p-nav-item active" data-page="dashboard">
       <span class="p-nav-icon">&#9638;</span>
-      <span>Ana Sayfa</span>
+      <span>Dashboard</span>
     </button>
-    <button class="p-nav-item" data-page="billing">
-      <span class="p-nav-icon">&#9783;</span>
-      <span>Faturalar</span>
+    <button class="p-nav-item" data-page="subscribers">
+      <span class="p-nav-icon">&#9787;</span>
+      <span>Aboneler</span>
     </button>
-    <button class="p-nav-item" data-page="packages">
+    <button class="p-nav-item" data-page="payments">
+      <span class="p-nav-icon">&#8378;</span>
+      <span>Odemeler</span>
+    </button>
+    <button class="p-nav-item" data-page="devices">
       <span class="p-nav-icon">&#9881;</span>
-      <span>Paketler</span>
+      <span>Cihazlar</span>
     </button>
-    <button class="p-nav-item" data-page="speedtest">
-      <span class="p-nav-icon">&#9889;</span>
-      <span>Hiz Testi</span>
+    <button class="p-nav-item" data-page="alarms">
+      <span class="p-nav-icon">&#9888;</span>
+      <span>Alarmlar</span>
     </button>
-    <button class="p-nav-item" data-page="support">
+    <button class="p-nav-item" data-page="map">
+      <span class="p-nav-icon">&#9873;</span>
+      <span>Harita</span>
+    </button>
+    <button class="p-nav-item" data-page="whatsapp">
       <span class="p-nav-icon">&#9993;</span>
-      <span>Destek</span>
+      <span>WhatsApp</span>
     </button>
-    <button class="p-nav-item" data-page="wifi">
-      <span class="p-nav-icon">&#128246;</span>
-      <span>WiFi</span>
+    <button class="p-nav-item" data-page="mikrotik">
+      <span class="p-nav-icon">&#8644;</span>
+      <span>MikroTik</span>
     </button>
   </nav>
 
@@ -96,6 +106,8 @@
 <div class="p-toast-container" id="p-toast-container"></div>
 
 <!-- Scripts -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="js/admin-api-client.js"></script>
 <script src="js/api-client.js"></script>
 <script src="js/charts.js"></script>
 <script src="js/speedtest.js"></script>

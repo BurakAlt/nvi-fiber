@@ -1,19 +1,23 @@
 /**
- * Portal — Abone Self-Servis Portal Ana Kontrol Modulu
+ * Portal — ISP Yonetim Paneli Ana Kontrol Modulu
  * SPA (Single Page Application) yaklasimi — hash bazli routing
  * Tum sayfalar JS ile render edilir.
+ *
+ * Onceki abone self-servis portali admin paneline donusturuldu.
+ * ApiClient (abone API) korunuyor, AdminApi (yonetim API) kullaniliyor.
  */
 const Portal = (() => {
   'use strict';
 
   // ── Sabitler ──
-  var REFRESH_INTERVAL_MS = 60000;   // Dashboard auto-refresh (60s)
+  var REFRESH_INTERVAL_MS = 30000;   // Dashboard auto-refresh (30s)
   var TOAST_DURATION_MS = 4000;      // Toast bildirimi suresi
 
   // ── State ──
   let _currentPage = 'dashboard';
-  let _subscriberData = null;
+  let _currentUser = null;
   let _refreshTimer = null;
+  let _leafletMap = null; // Harita sayfasi icin
 
   // HTML escape — XSS onleme
   function _esc(str) {
@@ -43,12 +47,13 @@ const Portal = (() => {
     // Demo giris bilgisi
     var demoBtn = document.getElementById('p-demo-login');
     if (demoBtn) demoBtn.addEventListener('click', function() {
-      document.getElementById('p-login-subscriber').value = 'AB-1001';
-      document.getElementById('p-login-password').value = 'demo';
+      document.getElementById('p-login-username').value = 'admin';
+      document.getElementById('p-login-password').value = 'admin123';
     });
 
     // Oturum kontrolu
-    if (ApiClient.isAuthenticated()) {
+    if (AdminApi.isAuthenticated()) {
+      _currentUser = AdminApi.getCurrentUser();
       _showApp();
     }
   }
@@ -56,13 +61,13 @@ const Portal = (() => {
   // ── Auth ──
   async function _handleLogin(e) {
     e.preventDefault();
-    var subNo = document.getElementById('p-login-subscriber').value.trim();
+    var username = document.getElementById('p-login-username').value.trim();
     var pass = document.getElementById('p-login-password').value;
     var errEl = document.getElementById('p-login-error');
     var btn = document.getElementById('p-login-btn');
 
-    if (!subNo || !pass) {
-      errEl.textContent = 'Abone no ve sifre gerekli.';
+    if (!username || !pass) {
+      errEl.textContent = 'Kullanici adi ve sifre gerekli.';
       errEl.style.display = 'block';
       return;
     }
@@ -71,7 +76,7 @@ const Portal = (() => {
     btn.textContent = 'Giris yapiliyor...';
     errEl.style.display = 'none';
 
-    var res = await ApiClient.login(subNo, pass);
+    var res = await AdminApi.login(username, pass);
     btn.disabled = false;
     btn.textContent = 'Giris Yap';
 
@@ -81,22 +86,20 @@ const Portal = (() => {
       return;
     }
 
+    _currentUser = res.user;
     _showApp();
   }
 
-  async function _showApp() {
+  function _showApp() {
     document.getElementById('p-login-screen').style.display = 'none';
     document.getElementById('p-app').classList.add('active');
 
-    // Profil bilgisi yukle
-    var res = await ApiClient.getProfile();
-    if (res.ok) {
-      _subscriberData = res.data;
-      // Header guncelle
+    // Header guncelle
+    if (_currentUser) {
       var nameEl = document.getElementById('p-header-name');
-      if (nameEl) nameEl.textContent = _subscriberData.name; // textContent zaten safe
+      if (nameEl) nameEl.textContent = _currentUser.fullName || _currentUser.username;
       var avatarEl = document.getElementById('p-header-avatar-text');
-      if (avatarEl) avatarEl.textContent = _subscriberData.name.charAt(0).toUpperCase();
+      if (avatarEl) avatarEl.textContent = (_currentUser.fullName || _currentUser.username).charAt(0).toUpperCase();
     }
 
     // Logout butonu
@@ -119,18 +122,17 @@ const Portal = (() => {
   }
 
   function _handleLogout() {
-    ApiClient.logout();
+    AdminApi.logout();
     clearInterval(_refreshTimer);
     _refreshTimer = null;
-    // Hassas veriyi bellekten temizle
-    _subscriberData = null;
+    _currentUser = null;
     _currentPage = 'dashboard';
-    // Content alanini temizle (hassas veriler DOM'da kalmasin)
+    _leafletMap = null;
     var content = document.getElementById('p-content');
     if (content) content.innerHTML = '';
     document.getElementById('p-app').classList.remove('active');
     document.getElementById('p-login-screen').style.display = '';
-    document.getElementById('p-login-subscriber').value = '';
+    document.getElementById('p-login-username').value = '';
     document.getElementById('p-login-password').value = '';
   }
 
@@ -141,8 +143,7 @@ const Portal = (() => {
   }
 
   function _onHashChange() {
-    // Session timeout kontrolu
-    if (!ApiClient.isAuthenticated()) {
+    if (!AdminApi.isAuthenticated()) {
       _handleLogout();
       return;
     }
@@ -158,20 +159,32 @@ const Portal = (() => {
     // Render
     var content = document.getElementById('p-content');
     if (!content) return;
-    content.innerHTML = '<div class="p-empty"><div class="p-empty-icon">&#8987;</div><div class="p-empty-text">Yukleniyor...</div></div>';
+    _showLoading(content);
 
     // Sayfa isimlerini Turkce label olarak map'le
-    var pageLabels = { dashboard: 'Ana Sayfa', billing: 'Faturalar', packages: 'Paketler', speedtest: 'Hiz Testi', support: 'Destek', wifi: 'WiFi' };
+    var pageLabels = {
+      dashboard: 'Dashboard', subscribers: 'Aboneler', payments: 'Odemeler',
+      devices: 'Cihazlar', alarms: 'Alarmlar', map: 'Harita',
+      whatsapp: 'WhatsApp', mikrotik: 'MikroTik'
+    };
     var ariaEl = document.getElementById('p-aria-live');
-    if (ariaEl) ariaEl.textContent = (pageLabels[hash] || 'Ana Sayfa') + ' sayfasi yukleniyor';
+    if (ariaEl) ariaEl.textContent = (pageLabels[hash] || 'Dashboard') + ' sayfasi yukleniyor';
+
+    // Leaflet haritasi temizle (sayfa degistiginde)
+    if (hash !== 'map' && _leafletMap) {
+      _leafletMap.remove();
+      _leafletMap = null;
+    }
 
     switch (hash) {
       case 'dashboard': _renderDashboard(); break;
-      case 'billing': _renderBilling(); break;
-      case 'packages': _renderPackages(); break;
-      case 'speedtest': _renderSpeedTest(); break;
-      case 'support': _renderSupport(); break;
-      case 'wifi': _renderWifi(); break;
+      case 'subscribers': _renderSubscribers(); break;
+      case 'payments': _renderPayments(); break;
+      case 'devices': _renderDevices(); break;
+      case 'alarms': _renderAlarms(); break;
+      case 'map': _renderMap(); break;
+      case 'whatsapp': _renderWhatsapp(); break;
+      case 'mikrotik': _renderMikrotik(); break;
       default: _renderDashboard();
     }
   }
@@ -180,13 +193,20 @@ const Portal = (() => {
   function _el(id) { return document.getElementById(id); }
 
   function _formatCurrency(amount) {
-    return amount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TL';
+    if (amount == null) return '-';
+    return Number(amount).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TL';
   }
 
   function _formatDate(dateStr) {
     if (!dateStr) return '-';
     var d = new Date(dateStr);
     return d.toLocaleDateString('tr-TR');
+  }
+
+  function _formatDateTime(dateStr) {
+    if (!dateStr) return '-';
+    var d = new Date(dateStr);
+    return d.toLocaleDateString('tr-TR') + ' ' + d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
   }
 
   function _formatUptime(seconds) {
@@ -196,6 +216,17 @@ const Portal = (() => {
     if (d > 0) return d + ' gun ' + h + ' saat';
     var m = Math.floor((seconds % 3600) / 60);
     return h + ' saat ' + m + ' dk';
+  }
+
+  function _timeAgo(dateStr) {
+    if (!dateStr) return '-';
+    var now = new Date();
+    var d = new Date(dateStr);
+    var diff = Math.floor((now - d) / 1000);
+    if (diff < 60) return 'Az once';
+    if (diff < 3600) return Math.floor(diff / 60) + ' dk once';
+    if (diff < 86400) return Math.floor(diff / 3600) + ' saat once';
+    return Math.floor(diff / 86400) + ' gun once';
   }
 
   function _showToast(message, type) {
@@ -209,294 +240,639 @@ const Portal = (() => {
     setTimeout(function() { if (toast.parentNode) toast.remove(); }, TOAST_DURATION_MS);
   }
 
+  function _showLoading(el) {
+    el.innerHTML =
+      '<div class="p-stat-grid">' +
+        '<div class="p-skeleton p-skeleton-card"></div>'.repeat(3) +
+      '</div>' +
+      '<div style="margin-top:16px">' +
+        '<div class="p-skeleton p-skeleton-line" style="width:60%"></div>' +
+        '<div class="p-skeleton p-skeleton-line" style="width:80%"></div>' +
+        '<div class="p-skeleton p-skeleton-line" style="width:40%"></div>' +
+      '</div>';
+  }
+
+  function _showModal(html) {
+    var overlay = _el('p-modal-overlay');
+    var modal = _el('p-modal');
+    modal.innerHTML = html;
+    overlay.classList.add('active');
+
+    // Backdrop tiklama ile kapatma
+    var closeHandler = function(e) {
+      if (e.target === overlay) {
+        overlay.classList.remove('active');
+        overlay.removeEventListener('click', closeHandler);
+      }
+    };
+    overlay.addEventListener('click', closeHandler);
+  }
+
+  function _closeModal() {
+    var overlay = _el('p-modal-overlay');
+    if (overlay) overlay.classList.remove('active');
+  }
+
+  function _severityBadge(severity) {
+    var colors = { critical: 'red', warning: 'yellow', info: 'blue' };
+    var labels = { critical: 'Kritik', warning: 'Uyari', info: 'Bilgi' };
+    return '<span class="p-badge p-badge-' + (colors[severity] || 'gray') + '">' + _esc(labels[severity] || severity) + '</span>';
+  }
+
+  function _statusBadge(status) {
+    if (status === 'online') return '<span class="p-device-status online">Online</span>';
+    if (status === 'offline') return '<span class="p-device-status offline">Offline</span>';
+    if (status === 'warning') return '<span class="p-device-status warning">Uyari</span>';
+    return '<span class="p-badge p-badge-gray">' + _esc(status) + '</span>';
+  }
+
+  function _paymentStatusBadge(status) {
+    if (status === 'paid') return '<span class="p-badge p-badge-green">Odendi</span>';
+    if (status === 'unpaid') return '<span class="p-badge p-badge-red">Odenmedi</span>';
+    return '<span class="p-badge p-badge-gray">' + _esc(status) + '</span>';
+  }
+
+  function _deviceTypeLabel(type) {
+    var labels = { olt: 'OLT', router: 'Router', switch: 'Switch', ap: 'Access Point', antenna: 'Anten' };
+    return labels[type] || type;
+  }
+
+  function _deviceTypeIcon(type) {
+    var icons = { olt: '&#9655;', router: '&#8644;', switch: '&#9783;', ap: '&#9737;', antenna: '&#9880;' };
+    return icons[type] || '&#9881;';
+  }
+
+  function _actionBadge(action) {
+    var map = {
+      pppoe_disconnect: { cls: 'disconnect', label: 'Kesinti' },
+      pppoe_reconnect: { cls: 'reconnect', label: 'Baglanti' },
+      speed_limit: { cls: 'speed_limit', label: 'Hiz Limit' },
+      speed_restore: { cls: 'speed_restore', label: 'Hiz Acma' },
+      firewall_block: { cls: 'firewall_block', label: 'Engel' },
+      firmware_update: { cls: 'firmware_update', label: 'Guncelleme' }
+    };
+    var info = map[action] || { cls: '', label: action };
+    return '<span class="p-action-badge ' + info.cls + '">' + _esc(info.label) + '</span>';
+  }
+
   // ════════════════════════════════════════════════
   // ── DASHBOARD ──
   // ════════════════════════════════════════════════
   async function _renderDashboard() {
     var content = _el('p-content');
-    var profile, conn;
+    var statsRes, alarmsRes, logRes;
     try {
-      profile = await ApiClient.getProfile();
-      conn = await ApiClient.getConnectionStatus();
+      statsRes = await AdminApi.getDashboardStats();
+      alarmsRes = await AdminApi.getAlarms({ status: 'active' });
+      logRes = await AdminApi.getMikrotikLog(5);
     } catch (err) {
       content.innerHTML = '<p class="text-danger">Veri yuklenirken hata olustu.</p>';
       return;
     }
-    if (!profile.ok) { content.innerHTML = '<p class="text-danger">Veri yuklenemedi.</p>'; return; }
-    var sub = profile.data;
-    var c = conn.ok ? conn.data : {};
+    if (!statsRes.ok) { content.innerHTML = '<p class="text-danger">Dashboard verisi yuklenemedi.</p>'; return; }
 
-    var quotaHtml = '';
-    if (sub.package.quota) {
-      var usedPct = Math.round((sub.usage.quotaUsed || 0));
-      var color = usedPct > 90 ? 'var(--p-danger)' : usedPct > 70 ? 'var(--p-warning)' : 'var(--p-success)';
-      quotaHtml = '<div class="p-card-sub">Kota: ' + sub.package.quota + ' GB</div>' +
-        '<div class="p-progress mt-8"><div class="p-progress-fill" style="width:' + usedPct + '%;background:' + color + '"></div></div>' +
-        '<div class="fs-sm text-dim mt-8">%' + usedPct + ' kullanildi</div>';
-    } else {
-      quotaHtml = '<div class="p-card-sub">Limitsiz</div>';
-    }
+    var s = statsRes.data;
+    var alarms = alarmsRes.ok ? alarmsRes.data.slice(0, 5) : [];
+    var logs = logRes.ok ? logRes.data : [];
 
     content.innerHTML =
-      '<div class="p-section-title"><span class="p-icon">&#9638;</span> Hosgeldiniz, ' + _esc(sub.name) + '</div>' +
-      '<div class="p-grid">' +
-        // Profil
+      '<div class="p-section-title"><span class="p-icon">&#9638;</span> Dashboard</div>' +
+
+      // Istatistik kartlari
+      '<div class="p-stat-grid" style="grid-template-columns: repeat(auto-fit, minmax(160px, 1fr))">' +
+        _statCard('Toplam Abone', s.total_subscribers, null, 'subscribers') +
+        _statCard('Aktif Abone', s.active_subscribers, 'text-success', 'subscribers') +
+        _statCard('Odenmemis', s.unpaid_subscribers, 'text-danger', 'subscribers') +
+        _statCard('Bekleyen Odeme', s.pending_payment_reviews, 'text-warning', 'payments') +
+        _statCard('Acik Konusma', s.open_whatsapp_conversations, 'text-info', 'whatsapp') +
+        _statCard('MikroTik Islem', s.mikrotik_actions_30d, 'text-dim', 'mikrotik') +
+      '</div>' +
+
+      // Son alarmlar ve MikroTik islemleri
+      '<div class="p-grid p-grid-2 mt-16">' +
         '<div class="p-card">' +
-          '<div class="p-card-header"><span class="p-card-title">Profil</span></div>' +
-          '<div><strong>' + _esc(sub.name) + '</strong></div>' +
-          '<div class="fs-sm text-dim">' + _esc(sub.address) + '</div>' +
-          '<div class="fs-sm text-dim mt-8">Abone No: ' + _esc(sub.id) + '</div>' +
-          '<div class="fs-sm text-dim">Baslangic: ' + _formatDate(sub.startDate) + '</div>' +
-        '</div>' +
-        // Paket
-        '<div class="p-card">' +
-          '<div class="p-card-header"><span class="p-card-title">Paket</span><span class="p-badge p-badge-blue">' + _esc(sub.package.name) + '</span></div>' +
-          '<div class="p-card-value">' + sub.package.downloadMbps + ' <span class="fs-sm fw-600 text-dim">Mbps</span></div>' +
-          '<div class="p-card-sub">' + sub.package.uploadMbps + ' Mbps yukle | ' + _formatCurrency(sub.package.price) + '/ay</div>' +
-        '</div>' +
-        // Kullanim
-        '<div class="p-card">' +
-          '<div class="p-card-header"><span class="p-card-title">Bu Ay Kullanim</span></div>' +
-          '<div class="flex gap-12">' +
-            '<div><div class="p-card-value text-info">' + sub.usage.downloadGB + '</div><div class="p-card-sub">GB indirme</div></div>' +
-            '<div><div class="p-card-value" style="color:var(--p-accent)">' + sub.usage.uploadGB + '</div><div class="p-card-sub">GB yukleme</div></div>' +
+          '<div class="p-card-header"><span class="p-card-title">Son Alarmlar</span>' +
+            '<button class="p-btn p-btn-outline p-btn-sm" onclick="location.hash=\'#alarms\'">Tumu</button>' +
           '</div>' +
-          quotaHtml +
+          _renderAlarmList(alarms) +
         '</div>' +
-        // Baglanti
         '<div class="p-card">' +
-          '<div class="p-card-header"><span class="p-card-title">Baglanti</span>' +
-            '<span class="p-status-dot ' + (c.status || 'offline') + '"></span>' +
+          '<div class="p-card-header"><span class="p-card-title">Son MikroTik Islemleri</span>' +
+            '<button class="p-btn p-btn-outline p-btn-sm" onclick="location.hash=\'#mikrotik\'">Tumu</button>' +
           '</div>' +
-          '<div class="p-card-value text-success">' + (c.status === 'online' ? 'Cevrimici' : 'Cevrimdisi') + '</div>' +
-          '<div class="p-card-sub">IP: ' + _esc(c.ip || '-') + '</div>' +
-          '<div class="fs-sm text-dim mt-8">Uptime: ' + _formatUptime(c.uptime) + '</div>' +
-        '</div>' +
-        // Hizli islemler
-        '<div class="p-card">' +
-          '<div class="p-card-header"><span class="p-card-title">Hizli Islemler</span></div>' +
-          '<div style="display:flex;flex-direction:column;gap:8px">' +
-            '<button class="p-btn p-btn-outline p-btn-sm" onclick="location.hash=\'#speedtest\'">&#9889; Hiz Testi Yap</button>' +
-            '<button class="p-btn p-btn-outline p-btn-sm" onclick="location.hash=\'#support\'">&#9993; Destek Talebi Ac</button>' +
-            '<button class="p-btn p-btn-outline p-btn-sm" onclick="location.hash=\'#billing\'">&#9783; Faturalari Gor</button>' +
-          '</div>' +
+          _renderLogList(logs) +
         '</div>' +
       '</div>';
+
+    // Stat kart tiklama
+    content.querySelectorAll('.p-stat-card[data-page]').forEach(function(card) {
+      card.addEventListener('click', function() {
+        location.hash = '#' + card.dataset.page;
+      });
+    });
+  }
+
+  function _statCard(label, value, colorClass, page) {
+    return '<div class="p-stat-card" data-page="' + _esc(page) + '">' +
+      '<div class="p-stat-label">' + _esc(label) + '</div>' +
+      '<div class="p-stat-value ' + (colorClass || '') + '">' + _esc(String(value)) + '</div>' +
+    '</div>';
+  }
+
+  function _renderAlarmList(alarms) {
+    if (!alarms || alarms.length === 0) return '<div class="p-empty"><div class="p-empty-text">Aktif alarm yok</div></div>';
+    var html = '';
+    for (var i = 0; i < alarms.length; i++) {
+      var a = alarms[i];
+      html += '<div style="padding:8px 0;border-bottom:1px solid var(--p-border);display:flex;justify-content:space-between;align-items:center">' +
+        '<div><span class="fw-600">' + _esc(a.device_name) + '</span> ' + _severityBadge(a.severity) +
+        '<div class="fs-sm text-dim">' + _esc(a.message).substring(0, 60) + '...</div></div>' +
+        '<div class="fs-sm text-muted">' + _timeAgo(a.created_at) + '</div>' +
+      '</div>';
+    }
+    return html;
+  }
+
+  function _renderLogList(logs) {
+    if (!logs || logs.length === 0) return '<div class="p-empty"><div class="p-empty-text">Islem yok</div></div>';
+    var html = '';
+    for (var i = 0; i < logs.length; i++) {
+      var l = logs[i];
+      html += '<div style="padding:8px 0;border-bottom:1px solid var(--p-border);display:flex;justify-content:space-between;align-items:center">' +
+        '<div>' + _actionBadge(l.action) + ' <span class="fw-600">' + _esc(l.target_user || l.router_ip) + '</span>' +
+        '<div class="fs-sm text-dim">' + _esc(l.reason).substring(0, 50) + '</div></div>' +
+        '<div class="fs-sm text-muted">' + _timeAgo(l.timestamp) + '</div>' +
+      '</div>';
+    }
+    return html;
   }
 
   // ════════════════════════════════════════════════
-  // ── FATURA YONETIMI ──
+  // ── ABONELER ──
   // ════════════════════════════════════════════════
-  async function _renderBilling() {
+  async function _renderSubscribers() {
     var content = _el('p-content');
     content.innerHTML =
-      '<div class="p-section-title"><span class="p-icon">&#9783;</span> Fatura Yonetimi</div>' +
-      '<div class="p-tabs">' +
-        '<button class="p-tab active" data-tab="invoices">Faturalar</button>' +
-        '<button class="p-tab" data-tab="payments">Odeme Gecmisi</button>' +
+      '<div class="p-section-title"><span class="p-icon">&#9787;</span> Abone Yonetimi</div>' +
+      '<div class="p-filter-bar">' +
+        '<input class="p-input" id="p-sub-search" placeholder="Ara: isim, abone no, telefon..." type="search">' +
+        '<select class="p-input" id="p-sub-district">' +
+          '<option value="all">Tum Ilceler</option>' +
+          '<option value="Merkez">Merkez</option>' +
+          '<option value="Ilgaz">Ilgaz</option>' +
+          '<option value="Sabanozü">Sabanozü</option>' +
+          '<option value="Atkaracalar">Atkaracalar</option>' +
+          '<option value="Cerkes">Cerkes</option>' +
+        '</select>' +
+        '<select class="p-input" id="p-sub-payment">' +
+          '<option value="all">Tum Durum</option>' +
+          '<option value="paid">Odenmis</option>' +
+          '<option value="unpaid">Odenmemis</option>' +
+        '</select>' +
+        '<button class="p-btn p-btn-outline p-btn-sm" id="p-sub-csv-btn">CSV Import</button>' +
+        '<input type="file" id="p-sub-csv-file" accept=".csv" style="display:none">' +
       '</div>' +
-      '<div id="p-billing-content"></div>';
+      '<div id="p-sub-table-wrap"></div>';
 
-    content.querySelectorAll('.p-tab').forEach(function(t) {
-      t.addEventListener('click', function() {
-        content.querySelectorAll('.p-tab').forEach(function(x) { x.classList.remove('active'); });
-        t.classList.add('active');
-        if (t.dataset.tab === 'invoices') _renderInvoices();
-        else _renderPayments();
-      });
+    // CSV import
+    _el('p-sub-csv-btn').addEventListener('click', function() { _el('p-sub-csv-file').click(); });
+    _el('p-sub-csv-file').addEventListener('change', async function(e) {
+      if (e.target.files.length === 0) return;
+      var res = await AdminApi.importSubscribersCsv(e.target.files[0]);
+      if (res.ok) {
+        var d = res.data;
+        _showToast('CSV import: ' + d.created + ' olusturuldu, ' + d.updated + ' guncellendi' + (d.errors.length > 0 ? ', ' + d.errors.length + ' hata' : ''), 'success');
+        _loadSubscriberTable();
+      } else {
+        _showToast('Import hatasi: ' + res.error, 'error');
+      }
     });
 
-    _renderInvoices();
+    // Filtre event'leri
+    var debounceTimer = null;
+    _el('p-sub-search').addEventListener('input', function() {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(_loadSubscriberTable, 300);
+    });
+    _el('p-sub-district').addEventListener('change', _loadSubscriberTable);
+    _el('p-sub-payment').addEventListener('change', _loadSubscriberTable);
+
+    _loadSubscriberTable();
   }
 
-  async function _renderInvoices() {
-    var el = _el('p-billing-content');
-    var res = await ApiClient.getInvoices();
-    if (!res.ok) { el.innerHTML = '<p class="text-danger">Faturalar yuklenemedi.</p>'; return; }
-    var invoices = res.data;
+  async function _loadSubscriberTable() {
+    var wrap = _el('p-sub-table-wrap');
+    if (!wrap) return;
+
+    var params = {
+      search: (_el('p-sub-search') || {}).value || '',
+      district: (_el('p-sub-district') || {}).value || 'all',
+      payment_status: (_el('p-sub-payment') || {}).value || 'all'
+    };
+
+    var res = await AdminApi.getSubscribers(params);
+    if (!res.ok) { wrap.innerHTML = '<p class="text-danger">Aboneler yuklenemedi.</p>'; return; }
+    var subs = res.data;
+
+    if (subs.length === 0) {
+      wrap.innerHTML = '<div class="p-empty"><div class="p-empty-icon">&#9787;</div><div class="p-empty-text">Sonuc bulunamadi</div></div>';
+      return;
+    }
 
     var rows = '';
-    for (var i = 0; i < invoices.length; i++) {
-      var inv = invoices[i];
-      var statusBadge = inv.status === 'paid'
-        ? '<span class="p-badge p-badge-green">Odendi</span>'
-        : '<span class="p-badge p-badge-red">Odenmedi</span>';
-      rows += '<tr class="p-clickable" data-invoice="' + _esc(inv.id) + '">' +
-        '<td>' + _esc(inv.period) + '</td>' +
-        '<td>' + _formatDate(inv.issueDate) + '</td>' +
-        '<td class="fw-600">' + _formatCurrency(inv.total) + '</td>' +
-        '<td>' + statusBadge + '</td>' +
-        '<td>' + _formatDate(inv.dueDate) + '</td>' +
-        '</tr>';
+    for (var i = 0; i < subs.length; i++) {
+      var s = subs[i];
+      rows += '<tr class="p-clickable" data-abone="' + _esc(s.abone_no) + '">' +
+        '<td>' + _esc(s.abone_no) + '</td>' +
+        '<td class="fw-600">' + _esc(s.full_name) + '</td>' +
+        '<td>' + _esc(s.phone) + '</td>' +
+        '<td>' + _esc(s.district) + '</td>' +
+        '<td>' + _esc(s.package_name) + '</td>' +
+        '<td>' + (s.is_active ? '<span class="p-badge p-badge-green">Aktif</span>' : '<span class="p-badge p-badge-red">Pasif</span>') + '</td>' +
+        '<td>' + _paymentStatusBadge(s.payment_status) + '</td>' +
+      '</tr>';
     }
 
-    el.innerHTML =
+    wrap.innerHTML =
       '<div class="p-table-wrap"><table class="p-table"><thead><tr>' +
-        '<th>Donem</th><th>Tarih</th><th>Tutar</th><th>Durum</th><th>Son Odeme</th>' +
-      '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+        '<th>Abone No</th><th>Ad Soyad</th><th>Telefon</th><th>Ilce</th><th>Paket</th><th>Durum</th><th>Odeme</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
+      '<div class="fs-sm text-dim mt-8">Toplam: ' + res.total + ' abone</div>';
 
-    el.querySelectorAll('.p-clickable').forEach(function(row) {
-      row.addEventListener('click', function() {
-        _showInvoiceDetail(row.dataset.invoice);
-      });
+    wrap.querySelectorAll('.p-clickable').forEach(function(row) {
+      row.addEventListener('click', function() { _showSubscriberDetail(row.dataset.abone); });
     });
   }
 
-  async function _showInvoiceDetail(invoiceId) {
-    var res = await ApiClient.getInvoiceDetail(invoiceId);
-    if (!res.ok) { _showToast('Fatura detayi yuklenemedi.', 'error'); return; }
-    var inv = res.data;
+  async function _showSubscriberDetail(abone_no) {
+    var res = await AdminApi.getSubscriber(abone_no);
+    if (!res.ok) { _showToast('Abone detayi yuklenemedi.', 'error'); return; }
+    var s = res.data;
 
-    var itemRows = '';
-    for (var i = 0; i < inv.items.length; i++) {
-      itemRows += '<tr><td>' + _esc(inv.items[i].description) + '</td><td class="text-right fw-600">' + _formatCurrency(inv.items[i].amount) + '</td></tr>';
+    // Cihaz listesi
+    var devHtml = '';
+    if (s.devices && s.devices.length > 0) {
+      for (var i = 0; i < s.devices.length; i++) {
+        var d = s.devices[i];
+        devHtml += '<div style="padding:4px 0" class="fs-sm">' + _esc(d.name) + ' (' + _esc(d.ip_address) + ') ' + _statusBadge(d.status) + '</div>';
+      }
+    } else {
+      devHtml = '<div class="fs-sm text-dim">Atanmis cihaz yok</div>';
     }
 
-    var overlay = _el('p-modal-overlay');
-    var modal = _el('p-modal');
-    modal.innerHTML =
-      '<div class="p-modal-title">Fatura Detay — ' + _esc(inv.id) + '</div>' +
-      '<div class="fs-sm text-dim mb-16">Donem: ' + _esc(inv.period) + ' | Duzenleme: ' + _formatDate(inv.issueDate) + '</div>' +
-      '<div class="p-table-wrap"><table class="p-table"><thead><tr><th>Kalem</th><th class="text-right">Tutar</th></tr></thead>' +
-      '<tbody>' + itemRows + '</tbody>' +
-      '<tfoot><tr><td class="fw-700">TOPLAM</td><td class="text-right fw-700">' + _formatCurrency(inv.total) + '</td></tr></tfoot></table></div>' +
+    // Aktif alarm listesi
+    var almHtml = '';
+    if (s.active_alarms && s.active_alarms.length > 0) {
+      for (var j = 0; j < s.active_alarms.length; j++) {
+        var a = s.active_alarms[j];
+        almHtml += '<div style="padding:4px 0" class="fs-sm">' + _severityBadge(a.severity) + ' ' + _esc(a.message).substring(0, 50) + '</div>';
+      }
+    } else {
+      almHtml = '<div class="fs-sm text-dim">Aktif alarm yok</div>';
+    }
+
+    _showModal(
+      '<div class="p-modal-title">' + _esc(s.full_name) + ' <span class="fs-sm text-dim">(' + _esc(s.abone_no) + ')</span></div>' +
+      '<div class="p-grid p-grid-2" style="gap:16px">' +
+        '<div>' +
+          '<div class="fs-sm text-dim mb-8">Iletisim</div>' +
+          '<div class="fs-sm">' + _esc(s.phone) + '</div>' +
+          '<div class="fs-sm text-dim mt-8">' + _esc(s.address) + '</div>' +
+          '<div class="fs-sm text-dim">' + _esc(s.district) + ' / ' + _esc(s.village) + '</div>' +
+        '</div>' +
+        '<div>' +
+          '<div class="fs-sm text-dim mb-8">Abonelik</div>' +
+          '<div class="fs-sm">Paket: <span class="fw-600">' + _esc(s.package_name) + '</span> (' + _esc(s.package_speed) + ')</div>' +
+          '<div class="fs-sm">Baglanti: ' + _esc(s.connection_type) + '</div>' +
+          '<div class="fs-sm">Baslangic: ' + _formatDate(s.start_date) + '</div>' +
+          '<div class="fs-sm mt-8">Durum: ' + (s.is_active ? '<span class="p-badge p-badge-green">Aktif</span>' : '<span class="p-badge p-badge-red">Pasif</span>') + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="p-grid p-grid-2 mt-16" style="gap:16px">' +
+        '<div>' +
+          '<div class="fs-sm text-dim mb-8">MikroTik</div>' +
+          '<div class="fs-sm">User: ' + _esc(s.mikrotik_user) + '</div>' +
+          '<div class="fs-sm">IP: ' + _esc(s.mikrotik_ip) + '</div>' +
+          '<div class="fs-sm">Router: ' + _esc(s.mikrotik_router) + '</div>' +
+        '</div>' +
+        '<div>' +
+          '<div class="fs-sm text-dim mb-8">Odeme</div>' +
+          '<div class="fs-sm">' + _paymentStatusBadge(s.payment_status) + ' ' + _formatCurrency(s.payment_amount) + '/ay</div>' +
+          '<div class="fs-sm">Bakiye: <span class="' + (s.balance < 0 ? 'text-danger fw-600' : 'text-success') + '">' + _formatCurrency(s.balance) + '</span></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="mt-16"><div class="fs-sm text-dim mb-8">Bagli Cihazlar</div>' + devHtml + '</div>' +
+      '<div class="mt-16"><div class="fs-sm text-dim mb-8">Aktif Alarmlar</div>' + almHtml + '</div>' +
       '<div class="p-modal-actions">' +
         '<button class="p-btn p-btn-outline p-btn-sm" id="p-modal-close">Kapat</button>' +
-        '<button class="p-btn p-btn-primary p-btn-sm" id="p-modal-pdf">PDF Indir</button>' +
-      '</div>';
-    overlay.classList.add('active');
+      '</div>'
+    );
 
-    _el('p-modal-close').addEventListener('click', function() { overlay.classList.remove('active'); });
-    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.classList.remove('active'); });
-    _el('p-modal-pdf').addEventListener('click', async function() {
-      await ApiClient.downloadInvoicePdf(inv.id);
-      _showToast('PDF indirme baslatildi (demo mod)', 'info');
-    });
+    _el('p-modal-close').addEventListener('click', _closeModal);
   }
 
+  // ════════════════════════════════════════════════
+  // ── ODEMELER ──
+  // ════════════════════════════════════════════════
   async function _renderPayments() {
-    var el = _el('p-billing-content');
-    var res = await ApiClient.getPaymentHistory();
-    if (!res.ok) { el.innerHTML = '<p class="text-danger">Odeme gecmisi yuklenemedi.</p>'; return; }
+    var content = _el('p-content');
+    content.innerHTML =
+      '<div class="p-section-title"><span class="p-icon">&#8378;</span> Odeme Yonetimi</div>' +
+      '<div class="p-tabs">' +
+        '<button class="p-tab active" data-tab="pending">Onay Bekleyen</button>' +
+      '</div>' +
+      '<div id="p-payment-content"></div>';
+
+    _loadPendingPayments();
+  }
+
+  async function _loadPendingPayments() {
+    var el = _el('p-payment-content');
+    if (!el) return;
+
+    var res = await AdminApi.getPendingPayments();
+    if (!res.ok) { el.innerHTML = '<p class="text-danger">Odemeler yuklenemedi.</p>'; return; }
     var payments = res.data;
+
+    if (payments.length === 0) {
+      el.innerHTML = '<div class="p-empty"><div class="p-empty-icon">&#10003;</div><div class="p-empty-text">Onay bekleyen odeme yok</div></div>';
+      return;
+    }
 
     var rows = '';
     for (var i = 0; i < payments.length; i++) {
       var p = payments[i];
+      var matchColor = p.match_score >= 0.9 ? 'var(--p-success)' : p.match_score >= 0.7 ? 'var(--p-warning)' : 'var(--p-danger)';
+      var matchPct = Math.round(p.match_score * 100);
+
       rows += '<tr>' +
-        '<td>' + _formatDate(p.date) + '</td>' +
+        '<td>' + _formatDateTime(p.date) + '</td>' +
+        '<td class="fw-600">' + _esc(p.sender_name) + '</td>' +
         '<td class="fw-600">' + _formatCurrency(p.amount) + '</td>' +
-        '<td>' + _esc(p.method) + '</td>' +
-        '<td class="text-dim">' + _esc(p.reference) + '</td>' +
-        '</tr>';
+        '<td>' +
+          (p.matched_subscriber_name
+            ? _esc(p.matched_subscriber_name) + ' <span class="fs-sm text-dim">(' + _esc(p.matched_subscriber_abone_no) + ')</span>'
+            : '<span class="text-dim">Eslestirilemedi</span>') +
+        '</td>' +
+        '<td>' +
+          '<div class="p-match-score">' +
+            '<div class="p-match-score-bar"><div class="p-match-score-fill" style="width:' + matchPct + '%;background:' + matchColor + '"></div></div>' +
+            '<span class="p-match-score-text">%' + matchPct + '</span>' +
+          '</div>' +
+        '</td>' +
+        '<td>' +
+          '<div class="flex gap-8">' +
+            '<button class="p-btn p-btn-success p-btn-sm p-pay-approve" data-tx="' + _esc(p.tx_id) + '" data-sub="' + (p.matched_subscriber_id || '') + '">Onayla</button>' +
+            '<button class="p-btn p-btn-danger p-btn-sm p-pay-reject" data-tx="' + _esc(p.tx_id) + '">Reddet</button>' +
+          '</div>' +
+        '</td>' +
+      '</tr>';
     }
 
     el.innerHTML =
       '<div class="p-table-wrap"><table class="p-table"><thead><tr>' +
-        '<th>Tarih</th><th>Tutar</th><th>Yontem</th><th>Referans</th>' +
+        '<th>Tarih</th><th>Gonderen</th><th>Tutar</th><th>Onerilen Abone</th><th>Eslesme</th><th>Islem</th>' +
       '</tr></thead><tbody>' + rows + '</tbody></table></div>';
-  }
 
-  // ════════════════════════════════════════════════
-  // ── PAKET YONETIMI ──
-  // ════════════════════════════════════════════════
-  async function _renderPackages() {
-    var content = _el('p-content');
-    var currentRes = await ApiClient.getCurrentPackage();
-    var allRes = await ApiClient.getPackages();
-    if (!currentRes.ok || !allRes.ok) { content.innerHTML = '<p class="text-danger">Paket bilgisi yuklenemedi.</p>'; return; }
-    var current = currentRes.data;
-    var packages = allRes.data;
+    // Onayla/Reddet butonlari
+    el.querySelectorAll('.p-pay-approve').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        var txId = btn.dataset.tx;
+        var subId = btn.dataset.sub ? parseInt(btn.dataset.sub) : null;
+        var res = await AdminApi.approvePayment(txId, subId);
+        if (res.ok) {
+          _showToast('Odeme onaylandi.', 'success');
+          _loadPendingPayments();
+        } else {
+          _showToast('Hata: ' + res.error, 'error');
+        }
+      });
+    });
 
-    // Mevcut paket
-    var html = '<div class="p-section-title"><span class="p-icon">&#9881;</span> Paket Yonetimi</div>' +
-      '<div class="p-card mb-16">' +
-        '<div class="p-card-header"><span class="p-card-title">Mevcut Paketiniz</span><span class="p-badge p-badge-blue">' + _esc(current.name) + '</span></div>' +
-        '<div class="flex gap-12" style="flex-wrap:wrap">' +
-          '<div><span class="p-card-value">' + current.downloadMbps + '</span> <span class="text-dim fs-sm">Mbps indirme</span></div>' +
-          '<div><span class="p-card-value">' + current.uploadMbps + '</span> <span class="text-dim fs-sm">Mbps yukleme</span></div>' +
-          '<div><span class="p-card-value">' + _formatCurrency(current.price) + '</span> <span class="text-dim fs-sm">/ay</span></div>' +
-        '</div>' +
-        '<div class="mt-8">' + (current.features || []).map(function(f) { return '<span class="p-badge p-badge-gray" style="margin:2px">' + _esc(f) + '</span>'; }).join('') + '</div>' +
-      '</div>';
-
-    // Karsilastirma tablosu
-    var thCells = '<th>Ozellik</th>';
-    for (var i = 0; i < packages.length; i++) {
-      var isCurrent = packages[i].id === current.id;
-      thCells += '<th style="text-align:center">' + _esc(packages[i].name) + (isCurrent ? ' &#10003;' : '') + '</th>';
-    }
-
-    var rows = '';
-    // Hiz
-    rows += '<tr><td class="fw-600">Indirme Hizi</td>';
-    for (var j = 0; j < packages.length; j++) rows += '<td style="text-align:center">' + packages[j].downloadMbps + ' Mbps</td>';
-    rows += '</tr>';
-
-    rows += '<tr><td class="fw-600">Yukleme Hizi</td>';
-    for (var k = 0; k < packages.length; k++) rows += '<td style="text-align:center">' + packages[k].uploadMbps + ' Mbps</td>';
-    rows += '</tr>';
-
-    rows += '<tr><td class="fw-600">Kota</td>';
-    for (var m = 0; m < packages.length; m++) rows += '<td style="text-align:center">' + (packages[m].quota ? packages[m].quota + ' GB' : 'Limitsiz') + '</td>';
-    rows += '</tr>';
-
-    rows += '<tr><td class="fw-600">Aylik Ucret</td>';
-    for (var n = 0; n < packages.length; n++) rows += '<td style="text-align:center;font-weight:700">' + _formatCurrency(packages[n].price) + '</td>';
-    rows += '</tr>';
-
-    // Sec butonu
-    rows += '<tr><td></td>';
-    for (var p = 0; p < packages.length; p++) {
-      if (packages[p].id === current.id) {
-        rows += '<td style="text-align:center"><span class="p-badge p-badge-green">Mevcut</span></td>';
-      } else {
-        rows += '<td style="text-align:center"><button class="p-btn p-btn-primary p-btn-sm p-pkg-select" data-pkg="' + packages[p].id + '">Sec</button></td>';
-      }
-    }
-    rows += '</tr>';
-
-    html += '<div class="p-table-wrap"><table class="p-table"><thead><tr>' + thCells + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
-
-    content.innerHTML = html;
-
-    // Paket secimi
-    content.querySelectorAll('.p-pkg-select').forEach(function(btn) {
-      btn.addEventListener('click', function() { _showPackageChangeConfirm(btn.dataset.pkg, current, packages); });
+    el.querySelectorAll('.p-pay-reject').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        var txId = btn.dataset.tx;
+        var res = await AdminApi.rejectPayment(txId);
+        if (res.ok) {
+          _showToast('Odeme reddedildi.', 'info');
+          _loadPendingPayments();
+        } else {
+          _showToast('Hata: ' + res.error, 'error');
+        }
+      });
     });
   }
 
-  function _showPackageChangeConfirm(targetPkgId, current, packages) {
-    var target = null;
-    for (var i = 0; i < packages.length; i++) { if (packages[i].id === targetPkgId) { target = packages[i]; break; } }
-    if (!target) return;
+  // ════════════════════════════════════════════════
+  // ── CIHAZLAR ──
+  // ════════════════════════════════════════════════
+  async function _renderDevices() {
+    var content = _el('p-content');
+    content.innerHTML =
+      '<div class="p-section-title"><span class="p-icon">&#9881;</span> Cihaz Yonetimi</div>' +
+      '<div class="p-filter-bar">' +
+        '<select class="p-input" id="p-dev-type">' +
+          '<option value="all">Tum Tipler</option>' +
+          '<option value="olt">OLT</option>' +
+          '<option value="router">Router</option>' +
+          '<option value="switch">Switch</option>' +
+          '<option value="ap">Access Point</option>' +
+          '<option value="antenna">Anten</option>' +
+        '</select>' +
+        '<select class="p-input" id="p-dev-status">' +
+          '<option value="all">Tum Durum</option>' +
+          '<option value="online">Online</option>' +
+          '<option value="offline">Offline</option>' +
+          '<option value="warning">Uyari</option>' +
+        '</select>' +
+        '<button class="p-btn p-btn-primary p-btn-sm" id="p-dev-new" style="width:auto">+ Yeni Cihaz</button>' +
+      '</div>' +
+      '<div id="p-dev-grid"></div>';
 
-    var diff = target.price - current.price;
-    var diffText = diff > 0 ? '+' + _formatCurrency(diff) + ' (yukseltme)' : _formatCurrency(diff) + ' (dusurme)';
-    var diffClass = diff > 0 ? 'text-warning' : 'text-success';
+    _el('p-dev-type').addEventListener('change', _loadDeviceGrid);
+    _el('p-dev-status').addEventListener('change', _loadDeviceGrid);
+    _el('p-dev-new').addEventListener('click', _showNewDeviceModal);
 
-    var overlay = _el('p-modal-overlay');
-    var modal = _el('p-modal');
-    modal.innerHTML =
-      '<div class="p-modal-title">Paket Degisikligi Onayi</div>' +
-      '<div class="p-card mb-16"><div class="flex-between"><div><div class="fs-sm text-dim">Mevcut</div><div class="fw-700">' + _esc(current.name) + '</div><div class="fs-sm">' + _formatCurrency(current.price) + '/ay</div></div>' +
-      '<div style="font-size:1.5rem;color:var(--p-text-muted)">&#8594;</div>' +
-      '<div><div class="fs-sm text-dim">Yeni</div><div class="fw-700">' + _esc(target.name) + '</div><div class="fs-sm">' + _formatCurrency(target.price) + '/ay</div></div></div></div>' +
-      '<div class="p-card"><div class="flex-between"><span class="text-dim">Fiyat Farki</span><span class="fw-700 ' + diffClass + '">' + diffText + '</span></div>' +
-      '<div class="flex-between mt-8"><span class="text-dim">Yururluk</span><span>Sonraki fatura donemi</span></div></div>' +
-      '<div class="fs-sm text-dim mt-8">Not: Paket degisikligi talebi onay surecine duser. Onaylama sonrasi bir sonraki fatura doneminden itibaren gecerli olur.</div>' +
-      '<div class="p-modal-actions">' +
-        '<button class="p-btn p-btn-outline p-btn-sm" id="p-modal-cancel">Vazgec</button>' +
-        '<button class="p-btn p-btn-primary p-btn-sm" id="p-modal-confirm">Talep Olustur</button>' +
+    _loadDeviceGrid();
+  }
+
+  async function _loadDeviceGrid() {
+    var grid = _el('p-dev-grid');
+    if (!grid) return;
+
+    var params = {
+      type: (_el('p-dev-type') || {}).value || 'all',
+      status: (_el('p-dev-status') || {}).value || 'all'
+    };
+
+    var res = await AdminApi.getDevices(params);
+    if (!res.ok) { grid.innerHTML = '<p class="text-danger">Cihazlar yuklenemedi.</p>'; return; }
+    var devices = res.data;
+
+    if (devices.length === 0) {
+      grid.innerHTML = '<div class="p-empty"><div class="p-empty-icon">&#9881;</div><div class="p-empty-text">Cihaz bulunamadi</div></div>';
+      return;
+    }
+
+    var html = '<div class="p-device-grid">';
+    for (var i = 0; i < devices.length; i++) {
+      var d = devices[i];
+      html += '<div class="p-device-card" data-dev-id="' + _esc(d.id) + '">' +
+        '<div class="p-device-card-header">' +
+          '<div style="display:flex;align-items:center;gap:10px">' +
+            '<div class="p-device-type-icon">' + _deviceTypeIcon(d.device_type) + '</div>' +
+            '<div>' +
+              '<div class="p-device-card-name">' + _esc(d.name) + '</div>' +
+              '<div class="fs-sm text-dim">' + _esc(d.brand) + ' ' + _esc(d.model) + '</div>' +
+            '</div>' +
+          '</div>' +
+          _statusBadge(d.status) +
+        '</div>' +
+        '<div class="p-device-card-info">' +
+          'IP: ' + _esc(d.ip_address) + '<br>' +
+          'Tip: ' + _esc(_deviceTypeLabel(d.device_type)) +
+          (d.building_id ? '<br>Bina: ' + _esc(d.building_id) : '') +
+          (d.ada_code ? ' | Ada: ' + _esc(d.ada_code) : '') +
+        '</div>' +
       '</div>';
-    overlay.classList.add('active');
+    }
+    html += '</div>';
+    grid.innerHTML = html;
 
-    _el('p-modal-cancel').addEventListener('click', function() { overlay.classList.remove('active'); });
-    _el('p-modal-confirm').addEventListener('click', async function() {
-      var res = await ApiClient.requestPackageChange(targetPkgId);
-      overlay.classList.remove('active');
+    grid.querySelectorAll('.p-device-card').forEach(function(card) {
+      card.addEventListener('click', function() { _showDeviceDetail(card.dataset.devId); });
+    });
+  }
+
+  async function _showDeviceDetail(deviceId) {
+    var res = await AdminApi.getDevice(deviceId);
+    if (!res.ok) { _showToast('Cihaz detayi yuklenemedi.', 'error'); return; }
+    var d = res.data;
+
+    // Alarm gecmisi
+    var almHtml = '';
+    if (d.alarms && d.alarms.length > 0) {
+      for (var i = 0; i < d.alarms.length; i++) {
+        var a = d.alarms[i];
+        almHtml += '<div style="padding:4px 0" class="fs-sm">' +
+          _severityBadge(a.severity) + ' ' + _esc(a.message).substring(0, 60) +
+          (a.resolved ? ' <span class="p-badge p-badge-green">Cozuldu</span>' : '') +
+        '</div>';
+      }
+    } else {
+      almHtml = '<div class="fs-sm text-dim">Alarm gecmisi yok</div>';
+    }
+
+    // Bagli aboneler (router ise)
+    var subHtml = '';
+    if (d.subscribers && d.subscribers.length > 0) {
+      subHtml = '<div class="p-table-wrap mt-8"><table class="p-table"><thead><tr><th>Abone</th><th>IP</th><th>Durum</th></tr></thead><tbody>';
+      for (var j = 0; j < d.subscribers.length; j++) {
+        var s = d.subscribers[j];
+        subHtml += '<tr><td>' + _esc(s.full_name) + ' <span class="text-dim fs-sm">(' + _esc(s.abone_no) + ')</span></td>' +
+          '<td>' + _esc(s.mikrotik_ip) + '</td>' +
+          '<td>' + (s.is_active ? '<span class="p-badge p-badge-green">Aktif</span>' : '<span class="p-badge p-badge-red">Pasif</span>') + '</td></tr>';
+      }
+      subHtml += '</tbody></table></div>';
+    }
+
+    _showModal(
+      '<div class="p-modal-title">' + _esc(d.name) + ' ' + _statusBadge(d.status) + '</div>' +
+      '<div class="p-grid p-grid-2" style="gap:16px">' +
+        '<div>' +
+          '<div class="fs-sm text-dim mb-8">Cihaz Bilgileri</div>' +
+          '<div class="fs-sm">Tip: ' + _esc(_deviceTypeLabel(d.device_type)) + '</div>' +
+          '<div class="fs-sm">Marka/Model: ' + _esc(d.brand) + ' ' + _esc(d.model) + '</div>' +
+          '<div class="fs-sm">IP: ' + _esc(d.ip_address) + '</div>' +
+          '<div class="fs-sm">MAC: ' + _esc(d.mac_address) + '</div>' +
+          (d.frequency ? '<div class="fs-sm">Frekans: ' + _esc(d.frequency) + '</div>' : '') +
+        '</div>' +
+        '<div>' +
+          '<div class="fs-sm text-dim mb-8">Metrikler</div>' +
+          '<div class="fs-sm">Uptime: ' + _formatUptime(d.uptime) + '</div>' +
+          (d.cpu_usage != null ? '<div class="fs-sm">CPU: <span class="' + (d.cpu_usage > 80 ? 'text-danger' : '') + '">' + d.cpu_usage + '%</span></div>' : '') +
+          (d.ram_usage != null ? '<div class="fs-sm">RAM: ' + d.ram_usage + '%</div>' : '') +
+          (d.building_id ? '<div class="fs-sm mt-8">Bina: ' + _esc(d.building_id) + '</div>' : '') +
+          (d.ada_code ? '<div class="fs-sm">Ada: ' + _esc(d.ada_code) + '</div>' : '') +
+        '</div>' +
+      '</div>' +
+      '<div class="mt-16"><div class="fs-sm text-dim mb-8">Alarm Gecmisi</div>' + almHtml + '</div>' +
+      (subHtml ? '<div class="mt-16"><div class="fs-sm text-dim mb-8">Bagli Aboneler</div>' + subHtml + '</div>' : '') +
+      '<div class="p-modal-actions">' +
+        '<button class="p-btn p-btn-outline p-btn-sm" id="p-modal-close">Kapat</button>' +
+        '<button class="p-btn p-btn-danger p-btn-sm" id="p-dev-delete" data-id="' + _esc(d.id) + '">Sil</button>' +
+      '</div>'
+    );
+
+    _el('p-modal-close').addEventListener('click', _closeModal);
+    _el('p-dev-delete').addEventListener('click', async function() {
+      if (!confirm('Bu cihazi silmek istediginize emin misiniz?')) return;
+      var r = await AdminApi.deleteDevice(d.id);
+      if (r.ok) {
+        _showToast('Cihaz silindi.', 'success');
+        _closeModal();
+        _loadDeviceGrid();
+      } else {
+        _showToast('Hata: ' + r.error, 'error');
+      }
+    });
+  }
+
+  function _showNewDeviceModal() {
+    _showModal(
+      '<div class="p-modal-title">Yeni Cihaz Ekle</div>' +
+      '<div class="p-form-row">' +
+        '<div class="p-form-group"><label>Cihaz Adi</label><input class="p-input" id="p-ndev-name" placeholder="MikroTik-YeniPOP" maxlength="64"></div>' +
+        '<div class="p-form-group"><label>Cihaz Tipi</label><select class="p-input" id="p-ndev-type">' +
+          '<option value="router">Router</option><option value="olt">OLT</option><option value="switch">Switch</option><option value="ap">Access Point</option><option value="antenna">Anten</option>' +
+        '</select></div>' +
+      '</div>' +
+      '<div class="p-form-row">' +
+        '<div class="p-form-group"><label>Marka</label><input class="p-input" id="p-ndev-brand" placeholder="MikroTik" maxlength="32"></div>' +
+        '<div class="p-form-group"><label>Model</label><input class="p-input" id="p-ndev-model" placeholder="CCR1009-7G-1C-1S+" maxlength="64"></div>' +
+      '</div>' +
+      '<div class="p-form-row">' +
+        '<div class="p-form-group"><label>IP Adresi</label><input class="p-input" id="p-ndev-ip" placeholder="10.0.0.10" maxlength="15"></div>' +
+        '<div class="p-form-group"><label>MAC Adresi</label><input class="p-input" id="p-ndev-mac" placeholder="AA:BB:CC:DD:EE:FF" maxlength="17"></div>' +
+      '</div>' +
+      '<div class="p-form-row">' +
+        '<div class="p-form-group"><label>Enlem (Lat)</label><input class="p-input" id="p-ndev-lat" placeholder="40.6013" type="number" step="0.0001"></div>' +
+        '<div class="p-form-group"><label>Boylam (Lng)</label><input class="p-input" id="p-ndev-lng" placeholder="33.6134" type="number" step="0.0001"></div>' +
+      '</div>' +
+      '<div class="p-form-row">' +
+        '<div class="p-form-group"><label>Frekans (opsiyonel)</label><input class="p-input" id="p-ndev-freq" placeholder="5 GHz" maxlength="20"></div>' +
+        '<div class="p-form-group"><label>Sinyal Esigi (dBm, opsiyonel)</label><input class="p-input" id="p-ndev-signal" placeholder="-70" type="number"></div>' +
+      '</div>' +
+      '<div class="p-modal-actions">' +
+        '<button class="p-btn p-btn-outline p-btn-sm" id="p-modal-close">Vazgec</button>' +
+        '<button class="p-btn p-btn-primary p-btn-sm" id="p-ndev-save" style="width:auto">Kaydet</button>' +
+      '</div>'
+    );
+
+    _el('p-modal-close').addEventListener('click', _closeModal);
+    _el('p-ndev-save').addEventListener('click', async function() {
+      var name = (_el('p-ndev-name').value || '').trim();
+      var ip = (_el('p-ndev-ip').value || '').trim();
+      if (!name || !ip) { _showToast('Cihaz adi ve IP adresi zorunlu.', 'error'); return; }
+
+      var data = {
+        name: name,
+        device_type: _el('p-ndev-type').value,
+        brand: (_el('p-ndev-brand').value || '').trim(),
+        model: (_el('p-ndev-model').value || '').trim(),
+        ip_address: ip,
+        mac_address: (_el('p-ndev-mac').value || '').trim(),
+        lat: parseFloat(_el('p-ndev-lat').value) || null,
+        lng: parseFloat(_el('p-ndev-lng').value) || null,
+        frequency: (_el('p-ndev-freq').value || '').trim() || null,
+        signal_threshold: parseInt(_el('p-ndev-signal').value) || null
+      };
+
+      var res = await AdminApi.createDevice(data);
       if (res.ok) {
-        _showToast('Paket degisikligi talebi olusturuldu. Talep No: ' + res.data.requestId, 'success');
+        _showToast('Cihaz olusturuldu: ' + res.data.id, 'success');
+        _closeModal();
+        _loadDeviceGrid();
       } else {
         _showToast('Hata: ' + res.error, 'error');
       }
@@ -504,446 +880,445 @@ const Portal = (() => {
   }
 
   // ════════════════════════════════════════════════
-  // ── HIZ TESTI ──
+  // ── ALARMLAR ──
   // ════════════════════════════════════════════════
-  async function _renderSpeedTest() {
+  async function _renderAlarms() {
     var content = _el('p-content');
     content.innerHTML =
-      '<div class="p-section-title"><span class="p-icon">&#9889;</span> Hiz Testi</div>' +
+      '<div class="p-section-title"><span class="p-icon">&#9888;</span> Alarm Yonetimi</div>' +
+      '<div id="p-alarm-summary"></div>' +
       '<div class="p-tabs">' +
-        '<button class="p-tab active" data-tab="test">Test</button>' +
-        '<button class="p-tab" data-tab="history">Gecmis</button>' +
+        '<button class="p-tab active" data-tab="active">Aktif</button>' +
+        '<button class="p-tab" data-tab="resolved">Cozulmus</button>' +
       '</div>' +
-      '<div id="p-speedtest-content"></div>';
+      '<div id="p-alarm-content"></div>';
+
+    // Ozet yukleme
+    var summaryRes = await AdminApi.getAlarmSummary();
+    if (summaryRes.ok) {
+      var sm = summaryRes.data;
+      _el('p-alarm-summary').innerHTML =
+        '<div class="p-alarm-summary">' +
+          '<div class="p-alarm-summary-item critical"><div><div class="p-alarm-summary-count text-danger">' + sm.critical + '</div><div class="p-alarm-summary-label">Kritik</div></div></div>' +
+          '<div class="p-alarm-summary-item warning"><div><div class="p-alarm-summary-count text-warning">' + sm.warning + '</div><div class="p-alarm-summary-label">Uyari</div></div></div>' +
+          '<div class="p-alarm-summary-item info"><div><div class="p-alarm-summary-count text-info">' + sm.info + '</div><div class="p-alarm-summary-label">Bilgi</div></div></div>' +
+        '</div>';
+    }
+
+    // Tab event
+    content.querySelectorAll('.p-tab').forEach(function(t) {
+      t.addEventListener('click', function() {
+        content.querySelectorAll('.p-tab').forEach(function(x) { x.classList.remove('active'); });
+        t.classList.add('active');
+        _loadAlarmList(t.dataset.tab);
+      });
+    });
+
+    _loadAlarmList('active');
+  }
+
+  async function _loadAlarmList(status) {
+    var el = _el('p-alarm-content');
+    if (!el) return;
+
+    var res = await AdminApi.getAlarms({ status: status });
+    if (!res.ok) { el.innerHTML = '<p class="text-danger">Alarmlar yuklenemedi.</p>'; return; }
+    var alarms = res.data;
+
+    if (alarms.length === 0) {
+      el.innerHTML = '<div class="p-empty"><div class="p-empty-icon">&#10003;</div><div class="p-empty-text">' +
+        (status === 'active' ? 'Aktif alarm yok' : 'Cozulmus alarm yok') + '</div></div>';
+      return;
+    }
+
+    var rows = '';
+    for (var i = 0; i < alarms.length; i++) {
+      var a = alarms[i];
+      var affectedCount = a.affected_subscriber_ids ? a.affected_subscriber_ids.length : 0;
+
+      rows += '<tr>' +
+        '<td class="fw-600">' + _esc(a.device_name) + '</td>' +
+        '<td>' + _esc(a.alarm_type.replace(/_/g, ' ')) + '</td>' +
+        '<td>' + _severityBadge(a.severity) + '</td>' +
+        '<td class="fs-sm">' + _esc(a.message).substring(0, 60) + '</td>' +
+        '<td>' + _timeAgo(a.created_at) + '</td>' +
+        '<td>' + (affectedCount > 0 ? '<span class="p-badge p-badge-red">' + affectedCount + ' abone</span>' : '-') + '</td>' +
+        '<td>';
+
+      if (!a.resolved) {
+        rows += '<div class="flex gap-8">';
+        if (!a.acknowledged) {
+          rows += '<button class="p-btn p-btn-outline p-btn-sm p-alm-ack" data-id="' + _esc(a.id) + '">Onayla</button>';
+        }
+        rows += '<button class="p-btn p-btn-success p-btn-sm p-alm-resolve" data-id="' + _esc(a.id) + '">Coz</button>';
+        rows += '</div>';
+      } else {
+        rows += '<span class="p-badge p-badge-green">Cozuldu</span>';
+        if (a.resolved_note) rows += '<div class="fs-sm text-dim mt-8">' + _esc(a.resolved_note) + '</div>';
+      }
+
+      rows += '</td></tr>';
+    }
+
+    el.innerHTML =
+      '<div class="p-table-wrap"><table class="p-table"><thead><tr>' +
+        '<th>Cihaz</th><th>Tip</th><th>Seviye</th><th>Mesaj</th><th>Zaman</th><th>Etkilenen</th><th>Islem</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+
+    // Acknowledge butonlari
+    el.querySelectorAll('.p-alm-ack').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        var r = await AdminApi.acknowledgeAlarm(btn.dataset.id);
+        if (r.ok) { _showToast('Alarm onaylandi.', 'info'); _loadAlarmList(status); }
+      });
+    });
+
+    // Resolve butonlari
+    el.querySelectorAll('.p-alm-resolve').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        _showResolveModal(btn.dataset.id, status);
+      });
+    });
+  }
+
+  function _showResolveModal(alarmId, currentTab) {
+    _showModal(
+      '<div class="p-modal-title">Alarmi Coz</div>' +
+      '<div class="p-form-group">' +
+        '<label>Cozum Notu</label>' +
+        '<textarea class="p-input" id="p-resolve-note" rows="3" placeholder="Sorunun nasil cozuldugunu aciklayin..." maxlength="500"></textarea>' +
+      '</div>' +
+      '<div class="p-modal-actions">' +
+        '<button class="p-btn p-btn-outline p-btn-sm" id="p-modal-close">Vazgec</button>' +
+        '<button class="p-btn p-btn-success p-btn-sm" id="p-resolve-save" style="width:auto">Coz ve Kapat</button>' +
+      '</div>'
+    );
+
+    _el('p-modal-close').addEventListener('click', _closeModal);
+    _el('p-resolve-save').addEventListener('click', async function() {
+      var note = (_el('p-resolve-note').value || '').trim();
+      var r = await AdminApi.resolveAlarm(alarmId, note);
+      if (r.ok) {
+        _showToast('Alarm cozuldu.', 'success');
+        _closeModal();
+        _loadAlarmList(currentTab);
+        // Ozeti guncelle
+        var summaryRes = await AdminApi.getAlarmSummary();
+        if (summaryRes.ok) {
+          var sm = summaryRes.data;
+          var sumEl = _el('p-alarm-summary');
+          if (sumEl) {
+            sumEl.innerHTML =
+              '<div class="p-alarm-summary">' +
+                '<div class="p-alarm-summary-item critical"><div><div class="p-alarm-summary-count text-danger">' + sm.critical + '</div><div class="p-alarm-summary-label">Kritik</div></div></div>' +
+                '<div class="p-alarm-summary-item warning"><div><div class="p-alarm-summary-count text-warning">' + sm.warning + '</div><div class="p-alarm-summary-label">Uyari</div></div></div>' +
+                '<div class="p-alarm-summary-item info"><div><div class="p-alarm-summary-count text-info">' + sm.info + '</div><div class="p-alarm-summary-label">Bilgi</div></div></div>' +
+              '</div>';
+          }
+        }
+      } else {
+        _showToast('Hata: ' + r.error, 'error');
+      }
+    });
+  }
+
+  // ════════════════════════════════════════════════
+  // ── HARITA ──
+  // ════════════════════════════════════════════════
+  async function _renderMap() {
+    var content = _el('p-content');
+    content.innerHTML =
+      '<div class="p-section-title"><span class="p-icon">&#9873;</span> Cihaz Haritasi</div>' +
+      '<div class="p-map-container" id="p-map-div"></div>';
+
+    // Leaflet kontrolu
+    if (typeof L === 'undefined') {
+      content.innerHTML += '<p class="text-danger mt-16">Leaflet kutuphanesi yuklenemedi. Internet baglantinizi kontrol edin.</p>';
+      return;
+    }
+
+    // Haritayi baslat — Cankiri merkez
+    setTimeout(async function() {
+      var mapDiv = _el('p-map-div');
+      if (!mapDiv) return;
+
+      _leafletMap = L.map(mapDiv).setView([40.6013, 33.6134], 10);
+
+      // Esri World Imagery
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Esri World Imagery',
+        maxZoom: 19
+      }).addTo(_leafletMap);
+
+      // Cihazlari yukle
+      var res = await AdminApi.getDevices();
+      if (!res.ok) return;
+      var devices = res.data;
+
+      for (var i = 0; i < devices.length; i++) {
+        var d = devices[i];
+        if (!d.lat || !d.lng) continue;
+
+        var color = d.status === 'online' ? '#22c55e' : d.status === 'offline' ? '#ef4444' : '#f59e0b';
+        var radius = d.device_type === 'olt' ? 10 : d.device_type === 'router' ? 8 : 6;
+
+        var marker = L.circleMarker([d.lat, d.lng], {
+          radius: radius,
+          fillColor: color,
+          color: '#fff',
+          weight: 2,
+          fillOpacity: 0.9
+        }).addTo(_leafletMap);
+
+        marker.bindPopup(
+          '<div style="font-family:Inter,sans-serif;font-size:13px">' +
+            '<strong>' + _esc(d.name) + '</strong><br>' +
+            _esc(_deviceTypeLabel(d.device_type)) + ' | ' + _esc(d.brand) + ' ' + _esc(d.model) + '<br>' +
+            'IP: ' + _esc(d.ip_address) + '<br>' +
+            'Durum: ' + (d.status === 'online' ? 'Online' : d.status === 'offline' ? 'Offline' : 'Uyari') +
+          '</div>'
+        );
+      }
+
+      // Harita boyutunu guncelle (container gorunur oldugunda)
+      _leafletMap.invalidateSize();
+    }, 100);
+  }
+
+  // ════════════════════════════════════════════════
+  // ── WHATSAPP ──
+  // ════════════════════════════════════════════════
+  async function _renderWhatsapp() {
+    var content = _el('p-content');
+    content.innerHTML =
+      '<div class="p-section-title"><span class="p-icon">&#9993;</span> WhatsApp Konusmalari</div>' +
+      '<div class="p-tabs">' +
+        '<button class="p-tab active" data-tab="open">Acik</button>' +
+        '<button class="p-tab" data-tab="resolved">Cozulmus</button>' +
+        '<button class="p-tab" data-tab="all">Tumu</button>' +
+      '</div>' +
+      '<div id="p-wa-content"></div>';
 
     content.querySelectorAll('.p-tab').forEach(function(t) {
       t.addEventListener('click', function() {
         content.querySelectorAll('.p-tab').forEach(function(x) { x.classList.remove('active'); });
         t.classList.add('active');
-        if (t.dataset.tab === 'test') _renderSpeedTestUI();
-        else _renderSpeedTestHistory();
+        _loadConversations(t.dataset.tab);
       });
     });
 
-    _renderSpeedTestUI();
+    _loadConversations('open');
   }
 
-  function _renderSpeedTestUI() {
-    var el = _el('p-speedtest-content');
-    el.innerHTML =
-      '<div class="p-speedtest-wrap">' +
-        '<div class="p-chart-container p-speedtest-gauge"><canvas id="p-speed-canvas" style="height:240px"></canvas></div>' +
-        '<div class="p-speedtest-phase" id="p-speed-phase">Testi baslatmak icin butona basin</div>' +
-        '<button class="p-speedtest-btn" id="p-speed-btn">BASLAT</button>' +
-        '<div class="p-speedtest-results" id="p-speed-results" style="display:none">' +
-          '<div class="p-speedtest-result"><div class="p-speedtest-result-value" id="p-res-download">-</div><div class="p-speedtest-result-label">Download (Mbps)</div></div>' +
-          '<div class="p-speedtest-result"><div class="p-speedtest-result-value" id="p-res-upload">-</div><div class="p-speedtest-result-label">Upload (Mbps)</div></div>' +
-          '<div class="p-speedtest-result"><div class="p-speedtest-result-value" id="p-res-latency">-</div><div class="p-speedtest-result-label">Ping (ms)</div></div>' +
-          '<div class="p-speedtest-result"><div class="p-speedtest-result-value" id="p-res-jitter">-</div><div class="p-speedtest-result-label">Jitter (ms)</div></div>' +
-        '</div>' +
-      '</div>';
+  async function _loadConversations(status) {
+    var el = _el('p-wa-content');
+    if (!el) return;
 
-    var btn = _el('p-speed-btn');
-    btn.addEventListener('click', _startSpeedTest);
-  }
+    var res = await AdminApi.getConversations(status);
+    if (!res.ok) { el.innerHTML = '<p class="text-danger">Konusmalar yuklenemedi.</p>'; return; }
+    var convos = res.data;
 
-  async function _startSpeedTest() {
-    var btn = _el('p-speed-btn');
-    if (SpeedTest.isRunning()) {
-      SpeedTest.cancel();
-      btn.textContent = 'BASLAT';
-      btn.classList.remove('running');
+    if (convos.length === 0) {
+      el.innerHTML = '<div class="p-empty"><div class="p-empty-icon">&#9993;</div><div class="p-empty-text">Konusma yok</div></div>';
       return;
     }
 
-    btn.textContent = 'IPTAL';
-    btn.classList.add('running');
-    _el('p-speed-results').style.display = 'none';
-
-    var profile = _subscriberData;
-    var planDown = profile ? profile.package.downloadMbps : 100;
-    var planUp = profile ? profile.package.uploadMbps : 20;
-    var canvas = _el('p-speed-canvas');
-
-    var result;
-    try {
-      result = await SpeedTest.run({
-        planDownload: planDown,
-        planUpload: planUp,
-        onProgress: function(info) {
-          _el('p-speed-phase').textContent = info.message;
-          if (info.phase === 'download' || info.phase === 'upload') {
-            var maxVal = info.phase === 'download' ? planDown : planUp;
-            var curVal = parseFloat(info.message) || 0;
-            PortalCharts.speedometer(canvas, curVal, maxVal * 1.2, {
-              unit: info.phase === 'download' ? 'Mbps ↓' : 'Mbps ↑'
-            });
-          }
-        }
-      });
-    } catch (err) {
-      _showToast('Hiz testi basarisiz oldu.', 'error');
-      _el('p-speed-phase').textContent = 'Test basarisiz oldu.';
-      result = { ok: false };
+    var html = '<div class="p-card" style="padding:0">';
+    for (var i = 0; i < convos.length; i++) {
+      var c = convos[i];
+      html += '<div class="p-conversation-item">' +
+        '<div class="p-conversation-left">' +
+          '<div class="p-conversation-name">' + _esc(c.subscriber_name) + '</div>' +
+          '<div class="p-conversation-phone">' + _esc(c.phone) + '</div>' +
+          '<div class="p-conversation-preview">' + _esc(c.last_message) + '</div>' +
+        '</div>' +
+        '<div class="p-conversation-right">' +
+          '<div class="p-conversation-date">' + _timeAgo(c.last_message_date) + '</div>' +
+          (c.status === 'open'
+            ? '<div class="p-conversation-count">' + c.message_count + '</div>' +
+              '<button class="p-btn p-btn-outline p-btn-sm p-wa-resolve" data-id="' + _esc(c.id) + '">Cozumle</button>'
+            : '<span class="p-badge p-badge-green">Cozuldu</span>') +
+        '</div>' +
+      '</div>';
     }
-
-    btn.textContent = 'BASLAT';
-    btn.classList.remove('running');
-
-    if (result.ok) {
-      var d = result.data;
-      _el('p-speed-results').style.display = '';
-      _el('p-res-download').textContent = d.download;
-      _el('p-res-upload').textContent = d.upload;
-      _el('p-res-latency').textContent = d.latency;
-      _el('p-res-jitter').textContent = d.jitter;
-
-      // Final gauge
-      PortalCharts.speedometer(canvas, d.download, planDown * 1.2, { unit: 'Mbps ↓' });
-
-      // Kaydet
-      await ApiClient.saveSpeedTestResult(d);
-      _showToast('Hiz testi tamamlandi ve kaydedildi.', 'success');
-
-      _el('p-speed-phase').textContent = 'Test tamamlandi — ' + _formatDate(d.timestamp);
-    }
-  }
-
-  async function _renderSpeedTestHistory() {
-    var el = _el('p-speedtest-content');
-    var res = await ApiClient.getSpeedTestHistory();
-    if (!res.ok) { el.innerHTML = '<p class="text-danger">Gecmis yuklenemedi.</p>'; return; }
-    var history = res.data;
-
-    // Trend grafik
-    var downloads = history.map(function(h) { return h.download; }).reverse();
-    var html = '<div class="p-card mb-16"><div class="p-card-header"><span class="p-card-title">Download Trendi</span></div>' +
-      '<div class="p-chart-container" style="height:120px"><canvas id="p-speed-trend-canvas" style="height:120px"></canvas></div></div>';
-
-    // Tablo
-    var rows = '';
-    for (var i = 0; i < history.length; i++) {
-      var h = history[i];
-      rows += '<tr>' +
-        '<td>' + _formatDate(h.date) + '</td>' +
-        '<td class="fw-600">' + h.download + '</td>' +
-        '<td>' + h.upload + '</td>' +
-        '<td>' + h.latency + '</td>' +
-        '<td>' + h.jitter + '</td>' +
-        '<td>' + _qoeGradeBadge(h.qoeScore) + '</td>' +
-        '</tr>';
-    }
-
-    html += '<div class="p-table-wrap"><table class="p-table"><thead><tr>' +
-      '<th>Tarih</th><th>Download</th><th>Upload</th><th>Ping</th><th>Jitter</th><th>QoE</th>' +
-      '</tr></thead><tbody>' + rows + '</tbody></table></div>';
-
+    html += '</div>';
     el.innerHTML = html;
 
-    // Trend ciz
-    setTimeout(function() {
-      var canvas = _el('p-speed-trend-canvas');
-      if (canvas) PortalCharts.sparkline(canvas, downloads, { color: '#6366f1', fillAlpha: 0.15, lineWidth: 2 });
-    }, 50);
-  }
-
-  function _qoeGradeBadge(score) {
-    if (score >= 70) return '<span class="p-badge p-badge-green">' + score + '</span>';
-    if (score >= 40) return '<span class="p-badge p-badge-yellow">' + score + '</span>';
-    return '<span class="p-badge p-badge-red">' + score + '</span>';
+    el.querySelectorAll('.p-wa-resolve').forEach(function(btn) {
+      btn.addEventListener('click', async function(e) {
+        e.stopPropagation();
+        var r = await AdminApi.resolveConversation(btn.dataset.id);
+        if (r.ok) {
+          _showToast('Konusma cozumlendi.', 'success');
+          _loadConversations(status);
+        }
+      });
+    });
   }
 
   // ════════════════════════════════════════════════
-  // ── DESTEK TALEBI ──
+  // ── MIKROTIK ──
   // ════════════════════════════════════════════════
-  async function _renderSupport() {
+  async function _renderMikrotik() {
     var content = _el('p-content');
     content.innerHTML =
-      '<div class="p-section-title"><span class="p-icon">&#9993;</span> Destek Merkezi</div>' +
+      '<div class="p-section-title"><span class="p-icon">&#8644;</span> MikroTik Yonetimi</div>' +
       '<div class="p-tabs">' +
-        '<button class="p-tab active" data-tab="tickets">Taleplerim</button>' +
-        '<button class="p-tab" data-tab="new">Yeni Talep</button>' +
-        '<button class="p-tab" data-tab="faq">SSS</button>' +
+        '<button class="p-tab active" data-tab="routers">Router Istatistikleri</button>' +
+        '<button class="p-tab" data-tab="sessions">Aktif Sessionlar</button>' +
+        '<button class="p-tab" data-tab="log">Islem Gecmisi</button>' +
       '</div>' +
-      '<div id="p-support-content"></div>';
+      '<div id="p-mk-content"></div>';
 
     content.querySelectorAll('.p-tab').forEach(function(t) {
       t.addEventListener('click', function() {
         content.querySelectorAll('.p-tab').forEach(function(x) { x.classList.remove('active'); });
         t.classList.add('active');
         var tab = t.dataset.tab;
-        if (tab === 'tickets') _renderTicketList();
-        else if (tab === 'new') _renderNewTicket();
-        else _renderFaq();
+        if (tab === 'routers') _loadRouterStats();
+        else if (tab === 'sessions') _loadActiveSessions();
+        else _loadMikrotikLog();
       });
     });
 
-    _renderTicketList();
+    _loadRouterStats();
   }
 
-  async function _renderTicketList() {
-    var el = _el('p-support-content');
-    var res = await ApiClient.getTickets();
-    if (!res.ok) { el.innerHTML = '<p class="text-danger">Talepler yuklenemedi.</p>'; return; }
-    var tickets = res.data;
+  async function _loadRouterStats() {
+    var el = _el('p-mk-content');
+    if (!el) return;
 
-    if (tickets.length === 0) {
-      el.innerHTML = '<div class="p-empty"><div class="p-empty-icon">&#9993;</div><div class="p-empty-text">Henuz destek talebiniz yok.</div></div>';
+    // Tum router'lari bul
+    var devRes = await AdminApi.getDevices({ type: 'router' });
+    if (!devRes.ok) { el.innerHTML = '<p class="text-danger">Router bilgisi yuklenemedi.</p>'; return; }
+    var routers = devRes.data;
+
+    var html = '';
+    for (var i = 0; i < routers.length; i++) {
+      var r = routers[i];
+      var statsRes = await AdminApi.getRouterStats(r.ip_address);
+      if (!statsRes.ok) continue;
+      var st = statsRes.data;
+
+      var cpuColor = st.cpu_usage > 80 ? 'text-danger' : st.cpu_usage > 50 ? 'text-warning' : 'text-success';
+      var ramColor = st.ram_usage > 80 ? 'text-danger' : st.ram_usage > 50 ? 'text-warning' : 'text-success';
+
+      html += '<div class="p-card mb-16">' +
+        '<div class="p-card-header"><span class="p-card-title">' + _esc(st.name) + '</span>' + _statusBadge(r.status) + '</div>' +
+        '<div class="fs-sm text-dim mb-8">' + _esc(st.model) + ' | ' + _esc(st.ip) + ' | ' + _esc(st.version) + '</div>' +
+        '<div class="p-router-stats">' +
+          '<div class="p-router-stat"><div class="p-router-stat-value ' + cpuColor + '">' + st.cpu_usage + '%</div><div class="p-router-stat-label">CPU</div></div>' +
+          '<div class="p-router-stat"><div class="p-router-stat-value ' + ramColor + '">' + st.ram_usage + '%</div><div class="p-router-stat-label">RAM</div></div>' +
+          '<div class="p-router-stat"><div class="p-router-stat-value">' + _formatUptime(st.uptime) + '</div><div class="p-router-stat-label">Uptime</div></div>' +
+          '<div class="p-router-stat"><div class="p-router-stat-value text-info">' + st.active_sessions + '</div><div class="p-router-stat-label">Sessionlar</div></div>' +
+        '</div>';
+
+      // Interface istatistikleri
+      if (st.interfaces && st.interfaces.length > 0) {
+        html += '<div class="p-table-wrap"><table class="p-table"><thead><tr><th>Interface</th><th>RX</th><th>TX</th><th>Durum</th></tr></thead><tbody>';
+        for (var j = 0; j < st.interfaces.length; j++) {
+          var iface = st.interfaces[j];
+          html += '<tr><td class="fw-600">' + _esc(iface.name) + '</td><td>' + _esc(iface.rx_rate) + '</td><td>' + _esc(iface.tx_rate) + '</td>' +
+            '<td>' + (iface.status === 'up' ? '<span class="p-badge p-badge-green">Up</span>' : '<span class="p-badge p-badge-red">Down</span>') + '</td></tr>';
+        }
+        html += '</tbody></table></div>';
+      }
+
+      html += '</div>';
+    }
+
+    el.innerHTML = html || '<div class="p-empty"><div class="p-empty-text">Router bulunamadi</div></div>';
+  }
+
+  async function _loadActiveSessions() {
+    var el = _el('p-mk-content');
+    if (!el) return;
+
+    // Ilk online router'in session'larini goster (secim eklenebilir)
+    var devRes = await AdminApi.getDevices({ type: 'router', status: 'online' });
+    if (!devRes.ok) { el.innerHTML = '<p class="text-danger">Router bilgisi yuklenemedi.</p>'; return; }
+    var routers = devRes.data;
+
+    // Router secici
+    var selectHtml = '<div class="p-form-group mb-16"><label>Router Sec</label><select class="p-input" id="p-mk-router-select">';
+    for (var i = 0; i < routers.length; i++) {
+      selectHtml += '<option value="' + _esc(routers[i].ip_address) + '">' + _esc(routers[i].name) + ' (' + _esc(routers[i].ip_address) + ')</option>';
+    }
+    selectHtml += '</select></div><div id="p-mk-session-table"></div>';
+
+    el.innerHTML = selectHtml;
+
+    _el('p-mk-router-select').addEventListener('change', function() {
+      _loadSessionTable(this.value);
+    });
+
+    if (routers.length > 0) _loadSessionTable(routers[0].ip_address);
+  }
+
+  async function _loadSessionTable(routerIp) {
+    var el = _el('p-mk-session-table');
+    if (!el) return;
+
+    var res = await AdminApi.getActiveSessions(routerIp);
+    if (!res.ok) { el.innerHTML = '<p class="text-danger">Session bilgisi yuklenemedi.</p>'; return; }
+    var sessions = res.data;
+
+    if (sessions.length === 0) {
+      el.innerHTML = '<div class="p-empty"><div class="p-empty-text">Aktif session yok</div></div>';
       return;
     }
 
     var rows = '';
-    for (var i = 0; i < tickets.length; i++) {
-      var t = tickets[i];
-      var statusBadge = t.status === 'open' ? '<span class="p-badge p-badge-yellow">Acik</span>'
-        : t.status === 'closed' ? '<span class="p-badge p-badge-green">Kapali</span>'
-        : '<span class="p-badge p-badge-blue">Beklemede</span>';
-      var priBadge = t.priority === 'urgent' ? '<span class="p-badge p-badge-red">Acil</span>' : '';
-      rows += '<tr class="p-clickable" data-ticket="' + _esc(t.id) + '">' +
-        '<td>' + _esc(t.id) + '</td>' +
-        '<td>' + _esc(t.subject) + '</td>' +
-        '<td>' + _esc(t.category) + '</td>' +
-        '<td>' + statusBadge + ' ' + priBadge + '</td>' +
-        '<td>' + _formatDate(t.createdAt) + '</td>' +
-        '</tr>';
+    for (var i = 0; i < sessions.length; i++) {
+      var s = sessions[i];
+      rows += '<tr>' +
+        '<td class="fw-600">' + _esc(s.username) + '</td>' +
+        '<td>' + _esc(s.ip) + '</td>' +
+        '<td>' + _formatUptime(s.uptime) + '</td>' +
+        '<td class="text-success">' + _esc(s.rx_rate) + '</td>' +
+        '<td class="text-info">' + _esc(s.tx_rate) + '</td>' +
+        '<td class="fs-sm text-dim">' + _esc(s.caller_id) + '</td>' +
+      '</tr>';
     }
 
     el.innerHTML =
       '<div class="p-table-wrap"><table class="p-table"><thead><tr>' +
-        '<th>No</th><th>Konu</th><th>Kategori</th><th>Durum</th><th>Tarih</th>' +
+        '<th>Kullanici</th><th>IP</th><th>Uptime</th><th>RX</th><th>TX</th><th>MAC</th>' +
       '</tr></thead><tbody>' + rows + '</tbody></table></div>';
-
-    el.querySelectorAll('.p-clickable').forEach(function(row) {
-      row.addEventListener('click', function() { _showTicketDetail(row.dataset.ticket); });
-    });
   }
 
-  async function _showTicketDetail(ticketId) {
-    var res = await ApiClient.getTicketDetail(ticketId);
-    if (!res.ok) { _showToast('Talep detayi yuklenemedi.', 'error'); return; }
-    var t = res.data;
+  async function _loadMikrotikLog() {
+    var el = _el('p-mk-content');
+    if (!el) return;
 
-    var timeline = '';
-    for (var i = 0; i < t.messages.length; i++) {
-      var m = t.messages[i];
-      var cls = m.from === 'subscriber' ? 'subscriber' : 'support';
-      var label = m.from === 'subscriber' ? 'Siz' : 'Destek';
-      timeline += '<div class="p-timeline-item ' + cls + '">' +
-        '<div class="p-timeline-meta">' + label + ' — ' + _formatDate(m.date) + '</div>' +
-        '<div class="p-timeline-text">' + _esc(m.text) + '</div>' +
-        '</div>';
+    var res = await AdminApi.getMikrotikLog();
+    if (!res.ok) { el.innerHTML = '<p class="text-danger">Islem gecmisi yuklenemedi.</p>'; return; }
+    var logs = res.data;
+
+    if (logs.length === 0) {
+      el.innerHTML = '<div class="p-empty"><div class="p-empty-text">Islem gecmisi bos</div></div>';
+      return;
     }
 
-    var overlay = _el('p-modal-overlay');
-    var modal = _el('p-modal');
-    modal.innerHTML =
-      '<div class="p-modal-title">' + _esc(t.subject) + ' <span class="fs-sm text-dim">(' + _esc(t.id) + ')</span></div>' +
-      '<div class="p-timeline">' + timeline + '</div>' +
-      (t.status === 'open' ?
-        '<div class="mt-16"><label for="p-ticket-reply" class="sr-only">Yanit mesaji</label><textarea class="p-input" id="p-ticket-reply" rows="3" placeholder="Mesajinizi yazin..." maxlength="1000" aria-label="Yanit mesaji"></textarea></div>' +
-        '<div class="p-modal-actions">' +
-          '<button class="p-btn p-btn-outline p-btn-sm" id="p-modal-close">Kapat</button>' +
-          '<button class="p-btn p-btn-primary p-btn-sm" id="p-ticket-send">Gonder</button>' +
-        '</div>'
-      :
-        '<div class="p-modal-actions"><button class="p-btn p-btn-outline p-btn-sm" id="p-modal-close">Kapat</button></div>'
-      );
-    overlay.classList.add('active');
-
-    _el('p-modal-close').addEventListener('click', function() { overlay.classList.remove('active'); });
-
-    var sendBtn = _el('p-ticket-send');
-    if (sendBtn) {
-      sendBtn.addEventListener('click', async function() {
-        var msg = _el('p-ticket-reply').value.trim();
-        if (!msg) return;
-        var r = await ApiClient.addTicketMessage(t.id, msg);
-        if (r.ok) {
-          _showToast('Mesaj gonderildi.', 'success');
-          overlay.classList.remove('active');
-        }
-      });
+    var rows = '';
+    for (var i = 0; i < logs.length; i++) {
+      var l = logs[i];
+      rows += '<tr>' +
+        '<td>' + _formatDateTime(l.timestamp) + '</td>' +
+        '<td>' + _actionBadge(l.action) + '</td>' +
+        '<td>' + _esc(l.router_ip) + '</td>' +
+        '<td class="fw-600">' + _esc(l.target_user || '-') + '</td>' +
+        '<td>' + _esc(l.target_ip || '-') + '</td>' +
+        '<td class="fs-sm">' + _esc(l.reason) + '</td>' +
+        '<td>' + _esc(l.performed_by) + '</td>' +
+        '<td>' + (l.success ? '<span class="p-badge p-badge-green">Basarili</span>' : '<span class="p-badge p-badge-red">Basarisiz</span>') + '</td>' +
+      '</tr>';
     }
-  }
 
-  function _renderNewTicket() {
-    var el = _el('p-support-content');
     el.innerHTML =
-      '<div class="p-card">' +
-        '<div class="p-card-header"><span class="p-card-title">Yeni Destek Talebi</span></div>' +
-        '<div class="p-form-group">' +
-          '<label>Kategori</label>' +
-          '<select class="p-input" id="p-ticket-category">' +
-            '<option value="baglanti">Baglanti Sorunu</option>' +
-            '<option value="hiz">Hiz Sorunu</option>' +
-            '<option value="fatura">Fatura</option>' +
-            '<option value="diger">Diger</option>' +
-          '</select>' +
-        '</div>' +
-        '<div class="p-form-group">' +
-          '<label>Konu</label>' +
-          '<input class="p-input" id="p-ticket-subject" placeholder="Kisaca sorunuzu belirtin" maxlength="120">' +
-        '</div>' +
-        '<div class="p-form-group">' +
-          '<label>Aciklama</label>' +
-          '<textarea class="p-input" id="p-ticket-desc" rows="4" placeholder="Sorunun detaylarini yazin..." maxlength="2000"></textarea>' +
-        '</div>' +
-        '<div class="p-form-group">' +
-          '<label>Oncelik</label>' +
-          '<select class="p-input" id="p-ticket-priority">' +
-            '<option value="normal">Normal</option>' +
-            '<option value="urgent">Acil</option>' +
-          '</select>' +
-        '</div>' +
-        '<div class="flex-between">' +
-          '<div class="fs-sm text-dim">Otomatik diagnostik raporu eklenecektir.</div>' +
-          '<button class="p-btn p-btn-primary" id="p-ticket-submit">Talebi Gonder</button>' +
-        '</div>' +
-      '</div>';
-
-    _el('p-ticket-submit').addEventListener('click', async function() {
-      var cat = _el('p-ticket-category').value;
-      var subj = _el('p-ticket-subject').value.trim();
-      var desc = _el('p-ticket-desc').value.trim();
-      var pri = _el('p-ticket-priority').value;
-
-      if (!subj || !desc) {
-        _showToast('Konu ve aciklama alanlari zorunlu.', 'error');
-        return;
-      }
-
-      var res = await ApiClient.createTicket({ category: cat, subject: subj, description: desc, priority: pri });
-      if (res.ok) {
-        _showToast('Destek talebi olusturuldu: ' + res.data.id, 'success');
-        _renderTicketList();
-        // Tab'i degistir
-        var tabs = document.querySelectorAll('.p-tab');
-        tabs.forEach(function(t) { t.classList.toggle('active', t.dataset.tab === 'tickets'); });
-      } else {
-        _showToast('Hata: ' + res.error, 'error');
-      }
-    });
-  }
-
-  async function _renderFaq() {
-    var el = _el('p-support-content');
-    var res = await ApiClient.getFaq();
-    if (!res.ok) { el.innerHTML = '<p class="text-danger">SSS yuklenemedi.</p>'; return; }
-    var faqs = res.data;
-
-    var html = '<div class="p-form-group"><label for="p-faq-search" class="sr-only">SSS Ara</label><input class="p-input" id="p-faq-search" placeholder="SSS icinde ara..." aria-label="SSS icinde ara"></div>';
-
-    for (var i = 0; i < faqs.length; i++) {
-      html += '<div class="p-faq-item" data-q="' + _esc(faqs[i].q.toLowerCase()) + '">' +
-        '<div class="p-faq-q"><span>' + _esc(faqs[i].q) + '</span><span>&#9660;</span></div>' +
-        '<div class="p-faq-a">' + _esc(faqs[i].a) + '</div>' +
-        '</div>';
-    }
-
-    el.innerHTML = html;
-
-    // Toggle
-    el.querySelectorAll('.p-faq-q').forEach(function(q) {
-      q.addEventListener('click', function() {
-        q.parentElement.classList.toggle('open');
-      });
-    });
-
-    // Arama
-    _el('p-faq-search').addEventListener('input', function(e) {
-      var query = e.target.value.toLowerCase();
-      el.querySelectorAll('.p-faq-item').forEach(function(item) {
-        item.style.display = item.dataset.q.indexOf(query) !== -1 ? '' : 'none';
-      });
-    });
-  }
-
-  // ════════════════════════════════════════════════
-  // ── WIFI YONETIMI ──
-  // ════════════════════════════════════════════════
-  async function _renderWifi() {
-    var content = _el('p-content');
-    var res = await ApiClient.getWifiSettings();
-    if (!res.ok) { content.innerHTML = '<p class="text-danger">WiFi bilgisi yuklenemedi.</p>'; return; }
-    var wifi = res.data;
-
-    var devRows = '';
-    for (var i = 0; i < wifi.devices.length; i++) {
-      var d = wifi.devices[i];
-      devRows += '<tr>' +
-        '<td>' + _esc(d.name) + '</td>' +
-        '<td class="text-dim">' + _esc(d.mac) + '</td>' +
-        '<td>' + _esc(d.ip) + '</td>' +
-        '<td>' + _esc(d.connected) + '</td>' +
-        '<td>' + _esc(d.bandwidth) + '</td>' +
-        '</tr>';
-    }
-
-    content.innerHTML =
-      '<div class="p-section-title"><span class="p-icon">&#128246;</span> WiFi Yonetimi</div>' +
-      '<div class="p-grid p-grid-2">' +
-        // Ayarlar
-        '<div class="p-card">' +
-          '<div class="p-card-header"><span class="p-card-title">WiFi Ayarlari</span></div>' +
-          '<div class="p-wifi-field"><span class="p-wifi-label">Ag Adi (SSID)</span><span class="p-wifi-value">' + _esc(wifi.ssid) + ' <button class="p-btn p-btn-outline p-btn-sm" id="p-wifi-edit-ssid">Degistir</button></span></div>' +
-          '<div class="p-wifi-field"><span class="p-wifi-label">Sifre</span><span class="p-wifi-value"><span id="p-wifi-pass-text">••••••••</span> <button class="p-btn p-btn-outline p-btn-sm" id="p-wifi-toggle-pass">Goster</button> <button class="p-btn p-btn-outline p-btn-sm" id="p-wifi-edit-pass">Degistir</button></span></div>' +
-          '<div class="p-wifi-field"><span class="p-wifi-label">Kanal</span><span class="p-wifi-value">' + _esc(wifi.channel) + ' (' + _esc(wifi.band) + ')</span></div>' +
-          '<div class="p-wifi-field"><span class="p-wifi-label">Guvenlik</span><span class="p-wifi-value">' + _esc(wifi.security) + '</span></div>' +
-        '</div>' +
-        // Bagli cihazlar
-        '<div class="p-card">' +
-          '<div class="p-card-header"><span class="p-card-title">Bagli Cihazlar</span><span class="p-badge p-badge-blue">' + wifi.devices.length + ' cihaz</span></div>' +
-          '<div class="p-table-wrap"><table class="p-table"><thead><tr>' +
-            '<th>Cihaz</th><th>MAC</th><th>IP</th><th>Sure</th><th>Hiz</th>' +
-          '</tr></thead><tbody>' + devRows + '</tbody></table></div>' +
-        '</div>' +
-      '</div>';
-
-    // Sifre goster/gizle
-    var passHidden = true;
-    _el('p-wifi-toggle-pass').addEventListener('click', function() {
-      passHidden = !passHidden;
-      _el('p-wifi-pass-text').textContent = passHidden ? '••••••••' : wifi.password;
-      this.textContent = passHidden ? 'Goster' : 'Gizle';
-    });
-
-    // SSID degistir
-    _el('p-wifi-edit-ssid').addEventListener('click', function() {
-      _showWifiEditModal('SSID Degistir', 'Yeni SSID', wifi.ssid, async function(val) {
-        var r = await ApiClient.updateWifiSsid(val);
-        _showToast(r.ok ? r.message : 'Hata: ' + r.error, r.ok ? 'success' : 'error');
-      });
-    });
-
-    // Sifre degistir
-    _el('p-wifi-edit-pass').addEventListener('click', function() {
-      _showWifiEditModal('WiFi Sifresi Degistir', 'Yeni Sifre', '', async function(val) {
-        if (val.length < 8) { _showToast('Sifre en az 8 karakter olmali.', 'error'); return; }
-        var r = await ApiClient.updateWifiPassword(val);
-        _showToast(r.ok ? r.message : 'Hata: ' + r.error, r.ok ? 'success' : 'error');
-      });
-    });
-  }
-
-  function _showWifiEditModal(title, placeholder, defaultVal, onConfirm) {
-    var overlay = _el('p-modal-overlay');
-    var modal = _el('p-modal');
-    modal.innerHTML =
-      '<div class="p-modal-title">' + title + '</div>' +
-      '<div class="p-form-group"><input class="p-input" id="p-wifi-modal-input" placeholder="' + _esc(placeholder) + '" value="' + _esc(defaultVal || '') + '" maxlength="64"></div>' +
-      '<div class="p-modal-actions">' +
-        '<button class="p-btn p-btn-outline p-btn-sm" id="p-modal-close">Vazgec</button>' +
-        '<button class="p-btn p-btn-primary p-btn-sm" id="p-modal-save">Kaydet</button>' +
-      '</div>';
-    overlay.classList.add('active');
-
-    _el('p-modal-close').addEventListener('click', function() { overlay.classList.remove('active'); });
-    _el('p-modal-save').addEventListener('click', function() {
-      var val = _el('p-wifi-modal-input').value.trim();
-      if (!val) { _showToast('Deger bos olamaz.', 'error'); return; }
-      overlay.classList.remove('active');
-      onConfirm(val);
-    });
+      '<div class="p-table-wrap"><table class="p-table"><thead><tr>' +
+        '<th>Tarih</th><th>Islem</th><th>Router</th><th>Hedef User</th><th>Hedef IP</th><th>Neden</th><th>Yapan</th><th>Sonuc</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table></div>';
   }
 
   // ── Public API ──

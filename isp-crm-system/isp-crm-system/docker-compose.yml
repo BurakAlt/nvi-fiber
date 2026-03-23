@@ -1,0 +1,123 @@
+version: "3.9"
+
+services:
+  # ─── PostgreSQL ───────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: isp_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ispcrm
+      POSTGRES_USER: ispuser
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - isp_net
+
+  # ─── Redis (job queue + cache) ────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: isp_redis
+    restart: unless-stopped
+    networks:
+      - isp_net
+
+  # ─── FastAPI Ana Backend ──────────────────────────────────
+  api:
+    build: ./api
+    container_name: isp_api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+asyncpg://ispuser:${POSTGRES_PASSWORD}@postgres/ispcrm
+      REDIS_URL: redis://redis:6379
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY}
+      MIKROTIK_HOST: ${MIKROTIK_HOST}
+      MIKROTIK_USER: ${MIKROTIK_USER}
+      MIKROTIK_PASS: ${MIKROTIK_PASS}
+      WAHA_URL: http://waha:3000
+      WAHA_SESSION: ${WAHA_SESSION}
+      SECRET_KEY: ${SECRET_KEY}
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./uploads:/app/uploads
+    networks:
+      - isp_net
+
+  # ─── WAHA (WhatsApp HTTP API) ─────────────────────────────
+  waha:
+    image: devlikeapro/waha:latest
+    container_name: isp_waha
+    restart: unless-stopped
+    environment:
+      WHATSAPP_DEFAULT_ENGINE: WEBJS
+      WAHA_PRINT_QR: true
+    ports:
+      - "3000:3000"
+    volumes:
+      - waha_data:/app/.waha/sessions
+    networks:
+      - isp_net
+
+  # ─── Celery Worker (async jobs) ───────────────────────────
+  worker:
+    build: ./api
+    container_name: isp_worker
+    restart: unless-stopped
+    command: celery -A app.worker worker --loglevel=info -Q default,payment,mikrotik
+    environment:
+      DATABASE_URL: postgresql+asyncpg://ispuser:${POSTGRES_PASSWORD}@postgres/ispcrm
+      REDIS_URL: redis://redis:6379
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY}
+      MIKROTIK_HOST: ${MIKROTIK_HOST}
+      MIKROTIK_USER: ${MIKROTIK_USER}
+      MIKROTIK_PASS: ${MIKROTIK_PASS}
+      WAHA_URL: http://waha:3000
+      WAHA_SESSION: ${WAHA_SESSION}
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - isp_net
+
+  # ─── Admin Dashboard (React) ──────────────────────────────
+  admin:
+    build: ./admin
+    container_name: isp_admin
+    restart: unless-stopped
+    ports:
+      - "3001:80"
+    networks:
+      - isp_net
+
+  # ─── Nginx Reverse Proxy ──────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: isp_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/certs:/etc/nginx/certs
+    depends_on:
+      - api
+      - admin
+    networks:
+      - isp_net
+
+volumes:
+  postgres_data:
+  waha_data:
+
+networks:
+  isp_net:
+    driver: bridge

@@ -1,0 +1,5 @@
+abone_no;full_name;phone;district;village;package_name;package_speed;connection_type;mikrotik_user;mikrotik_ip;mikrotik_router;payment_amount
+01247;Ahmet Yılmaz;05551234567;Merkez;Kayabaşı;25Mbps;25;pppoe;ahmet.yilmaz;;192.168.1.1;250
+01248;Mehmet Demir;05559876543;Ilgaz;Camili;50Mbps;50;static;;10.10.1.50;192.168.2.1;350
+01249;Fatma Kaya;05553334455;Şabanözü;Merkez;25Mbps;25;pppoe;fatma.kaya;;192.168.1.1;250
+01250;Ali Çelik;05557778899;Atkaracalar;Yukarı;100Mbps;100;pppoe;ali.celik;;192.168.3.1;450

@@ -32,7 +32,13 @@
       "Bash",
       "Write",
       "Edit",
-      "Accept<edit"
+      "Accept<edit",
+      "WebFetch(domain:thenewstack.io)",
+      "WebFetch(domain:www.news.aakashg.com)",
+      "WebFetch(domain:blog.skypilot.co)",
+      "WebFetch(domain:deepwiki.com)",
+      "WebFetch(domain:kingy.ai)",
+      "WebFetch(domain:datasciencedojo.com)"
     ],
     "deny": []
   },
